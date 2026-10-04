@@ -31,6 +31,7 @@ export default {
   "level.name2": "Intermédiaire",
   "level.name3": "Avancé",
   "level.name4": "Spécialiste",
+  "nav.back": "Retour",
   "nav.continue": "Reprendre",
   "nav.loading": "Chargement…",
   "nav.program": "Programme",

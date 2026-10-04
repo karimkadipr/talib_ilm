@@ -3,6 +3,7 @@ import { Check, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { useEffect } from "react";
 import { data, href, Link } from "react-router";
 import { AudioLesson } from "~/components/audio-lesson";
+import { BackLink } from "~/components/back-link";
 import { BookCover } from "~/components/book-cover";
 import { ScholarAvatar } from "~/components/scholar-avatar";
 import { Button } from "~/components/ui/button";
@@ -71,6 +72,9 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
   return (
     <div style={{ "--hue": subject.hue } as React.CSSProperties} className="grid gap-6 xl:grid-cols-[1fr_360px]">
       <div className="min-w-0 space-y-5">
+        <BackLink to={`${href("/books/:bookId", { bookId: book.id })}?s=${s.scholarId}`}>
+          <span lang={isAr ? "ar" : undefined}>{isAr ? book.title.ar : book.title.en}</span>
+        </BackLink>
         {lesson.audioUrl ? (
           <AudioLesson
             key={noteKey}

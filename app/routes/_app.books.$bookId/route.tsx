@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { BookCheck, BookOpen, Check, ChevronRight, Clock, Play, Undo2, Video } from "lucide-react";
 import { data, href, Link, useSearchParams } from "react-router";
+import { BackLink } from "~/components/back-link";
 import { BookCover } from "~/components/book-cover";
 import { ScholarAvatar } from "~/components/scholar-avatar";
 import { Button } from "~/components/ui/button";
@@ -155,6 +156,9 @@ export default function BookPage({ loaderData }: Route.ComponentProps) {
       <section className="relative -mx-4 -mt-6 overflow-hidden px-4 pt-10 pb-8 sm:-mx-6 sm:px-6 sm:pt-14">
         <div className="absolute inset-0 bg-[radial-gradient(90%_80%_at_20%_0%,oklch(0.32_0.07_var(--hue)/0.7),transparent_70%)] rtl:bg-[radial-gradient(90%_80%_at_80%_0%,oklch(0.32_0.07_var(--hue)/0.7),transparent_70%)]" />
         <div className="bg-khatam absolute inset-0 mask-[linear-gradient(to_bottom,black,transparent)]" />
+        <BackLink to={href("/subjects/:subjectId", { subjectId: subject.id })} className="relative -mt-4 mb-6 sm:-mt-6">
+          {l(subject.name)}
+        </BackLink>
         <div className="relative flex flex-col gap-8 sm:flex-row sm:items-end">
           <BookCover book={book} hue={subject.hue} size="lg" className="shadow-2xl shadow-black/50" />
           <div className="min-w-0 flex-1">

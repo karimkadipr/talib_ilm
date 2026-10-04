@@ -29,6 +29,7 @@ export default {
   "level.name2": "Intermediate",
   "level.name3": "Advanced",
   "level.name4": "Specialist",
+  "nav.back": "Back",
   "nav.continue": "Continue",
   "nav.loading": "Loading…",
   "nav.program": "Programme",

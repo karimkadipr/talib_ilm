@@ -37,6 +37,7 @@ export default {
   "level.name2": "المتوسط",
   "level.name3": "المتقدم",
   "level.name4": "للمتوسعين",
+  "nav.back": "رجوع",
   "nav.continue": "متابعة",
   "nav.loading": "جارٍ التحميل…",
   "nav.program": "البرنامج",
