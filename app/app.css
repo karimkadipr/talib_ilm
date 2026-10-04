@@ -11,6 +11,25 @@
     "Noto Color Emoji";
   /* Classical naskh for book titles and other display Arabic. */
   --font-arabic: "Amiri", "IBM Plex Sans Arabic", serif;
+
+  /* Audio player: equaliser bars, loading shimmer; page-loading bar. */
+  --animate-eq: eq 0.9s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
+  --animate-indeterminate: indeterminate 1.2s ease-in-out infinite;
+
+  @keyframes eq {
+    0%, 100% { transform: scaleY(0.3); }
+    50% { transform: scaleY(1); }
+  }
+  @keyframes shimmer {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+  }
+  @keyframes indeterminate {
+    from { transform: translateX(-100%) scaleX(0.4); }
+    50% { transform: translateX(30%) scaleX(0.6); }
+    to { transform: translateX(120%) scaleX(0.4); }
+  }
 }
 
 @theme inline {

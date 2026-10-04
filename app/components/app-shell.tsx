@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CalendarDays, Flame, Play, Sun } from "lucide-react";
-import { href, Link, NavLink } from "react-router";
+import { href, Link, NavLink, useNavigation } from "react-router";
 import { LanguageSwitcher } from "~/components/language-switcher";
 import { LogoMark } from "~/components/logo";
 import { days, getSubject } from "~/data/curriculum";
@@ -61,7 +61,7 @@ function Sidebar() {
       </nav>
 
       <div className="m-3 rounded-xl border bg-card/60 p-3 text-xs text-muted-foreground">
-        {t("shell.sampleNotice")}
+        {t("shell.storageNotice")}
       </div>
     </aside>
   );
@@ -112,10 +112,30 @@ function MobileNav() {
   );
 }
 
+/** Thin bar along the top while a page is loading; waits a moment so instant navigations don't flash it. */
+function NavigationProgress() {
+  const { t } = useLocalize();
+  const busy = useNavigation().state !== "idle";
+  return (
+    <div
+      role="progressbar"
+      aria-label={t("nav.loading")}
+      aria-hidden={!busy}
+      className={cn(
+        "pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5 overflow-hidden transition-opacity",
+        busy ? "opacity-100 delay-150 duration-200" : "opacity-0 duration-300",
+      )}
+    >
+      <div className="h-full w-full origin-left bg-[linear-gradient(90deg,transparent,var(--primary),var(--gold),transparent)] motion-safe:animate-indeterminate" />
+    </div>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { t } = useLocalize();
   return (
     <div className="min-h-dvh">
+      <NavigationProgress />
       <Sidebar />
       <div className="lg:ps-64">
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-xl sm:px-6">

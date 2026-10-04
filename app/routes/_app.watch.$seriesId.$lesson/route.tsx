@@ -78,6 +78,8 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
             src={lesson.audioUrl}
             book={book}
             hue={subject.hue}
+            artist={l(scholar.name)}
+            label={t("lesson.n", { n: num(n) })}
             onEnded={() => progress.toggleWatched(s.id, book.id, n, true)}
           />
         ) : (

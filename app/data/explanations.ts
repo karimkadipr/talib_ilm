@@ -1,6 +1,5 @@
-// Explanation series. Series built with `s()` are SAMPLE DATA: the scholars
-// and books are real, but lesson counts and durations are placeholders and no
-// media is linked. Real series list their lessons explicitly with `audioUrl`.
+// Explanation series. Only series with real recordings are listed; a book
+// without any simply shows no explanations yet.
 
 import type { Localized } from "./curriculum";
 
@@ -36,23 +35,7 @@ export const scholars: Scholar[] = [
   { id: "abbad", name: { ar: "عبد المحسن العباد", en: "ʿAbd al-Muḥsin al-ʿAbbād" }, hue: 285 },
 ];
 
-// Deterministic pseudo-random durations so SSR and the client agree.
-function lessons(count: number, seed: number, base = 45): Lesson[] {
-  return Array.from({ length: count }, (_, i) => {
-    const r = Math.sin(seed * 97 + i * 13.37) * 10000;
-    const jitter = Math.floor((r - Math.floor(r)) * 30) - 12;
-    return { n: i + 1, minutes: Math.max(12, base + jitter) };
-  });
-}
-
-const s = (bookId: string, scholarId: string, count: number, base?: number): Series => ({
-  id: `${bookId}--${scholarId}`,
-  bookId,
-  scholarId,
-  lessons: lessons(count, bookId.length * 31 + scholarId.length, base),
-});
-
-/** A real series hosted as one archive.org item, files named 01.mp3, 02.mp3, … */
+/** A series hosted as one archive.org item, files named 01.mp3, 02.mp3, … */
 function archiveSeries(
   bookId: string,
   scholarId: string,
@@ -79,9 +62,6 @@ const islamweb = (url: string): Series["source"] => ({
 });
 
 export const series: Series[] = [
-  s("usul-thalatha", "uthaymin", 9),
-  s("usul-thalatha", "fawzan", 11),
-  s("usul-thalatha", "salih-alash", 14, 60),
   archiveSeries(
     "usul-thalatha",
     "badr",
@@ -89,24 +69,30 @@ export const series: Series[] = [
     [59, 81, 75, 86, 88, 85, 86, 92, 97, 88, 89, 94, 87, 53, 85, 92, 74],
     islamweb("https://audio.islamweb.net/audio/index.php?page=lecview&sid=2735&read=0&lg=7939&kh=0"),
   ),
-  s("qawaid-arbaa", "fawzan", 2),
-  s("qawaid-arbaa", "salih-alash", 3),
-  s("usul-sittah", "fawzan", 3),
-  s("kitab-tawhid", "uthaymin", 38),
-  s("kitab-tawhid", "salih-alash", 42, 70),
-  s("kitab-tawhid", "fawzan", 30),
-  s("kashf-shubuhat", "uthaymin", 6),
-  s("kashf-shubuhat", "fawzan", 8),
-  s("wasitiyyah", "uthaymin", 27),
-  s("wasitiyyah", "fawzan", 22),
-  s("wasitiyyah", "salih-alash", 30, 65),
-  s("arbain-nawawi", "uthaymin", 20),
-  s("arbain-nawawi", "abbad", 16),
-  s("arbain-nawawi", "badr", 12),
-  s("umdat-ahkam", "uthaymin", 40),
-  s("ajurrumiyyah", "uthaymin", 18, 35),
-  s("tafsir-saadi", "badr", 30),
-  s("mulakhkhas-fiqhi", "fawzan", 48),
+  archiveSeries(
+    "qawaid-arbaa",
+    "badr",
+    "badr-sharh-al-qawaid-al-arbaa",
+    [70, 73, 74],
+    islamweb("https://audio.islamweb.net/audio/index.php?page=lecview&sid=2735&read=0&kh=0&lg=7918"),
+  ),
+  archiveSeries(
+    "usul-sittah",
+    "badr",
+    "badr-sharh-al-usul-al-sittah",
+    [67, 56, 78],
+    islamweb("https://audio.islamweb.net/audio/index.php?page=lecview&sid=2735&read=0&lg=7898&kh=0"),
+  ),
+  archiveSeries(
+    "kitab-tawhid",
+    "badr",
+    "badr-sharh-kitab-al-tawhid",
+    [
+      59, 56, 61, 64, 65, 58, 62, 63, 61, 60, 60, 61, 59, 62, 61, 59, 53, 54, 58, 76, 62, 63, 62, 67, 71, 61, 63,
+      62, 65, 59, 66, 63, 59, 64, 64, 67, 61, 62, 66, 63, 92, 74, 80, 78, 57, 64, 64, 66, 63, 51, 61, 53, 53, 59, 62,
+    ],
+    islamweb("https://audio.islamweb.net/audio/index.php?page=lecview&sid=2735&read=0&lg=7969&kh=0"),
+  ),
 ];
 
 export function getScholar(id: string) {

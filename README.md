@@ -7,7 +7,7 @@ Requires Node > 22.22.
 
 ```bash
 pnpm install
-pnpm dev               # http://localhost:5173
+pnpm dev               # http://localhost:3000
 pnpm typecheck
 pnpm build && pnpm start
 ```
@@ -29,8 +29,8 @@ explanations (shurūḥ) of each book.
 Data:
 
 - `app/data/curriculum.ts` — the full programme (Arabic + transliteration). Book ids are the stable keys.
-- `app/data/explanations.ts` — **sample** scholars/series. Lesson counts and durations are made up and
-  no `videoId`s are set; the player shows a placeholder until one is.
+- `app/data/explanations.ts` — scholars and their explanation series. Only series with real recordings
+  are listed (MP3s hosted on archive.org, see `archiveSeries`); books without one show no explanations.
 - `app/lib/progress.ts` — progress, streak and notes in `localStorage` — there is no login by design.
 - `app/lib/schedule.ts` — weekday → science (week starts Saturday), current book, progress maths.
 
