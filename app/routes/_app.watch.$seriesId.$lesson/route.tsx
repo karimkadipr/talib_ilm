@@ -8,6 +8,7 @@ import { BookCover } from "~/components/book-cover";
 import { ScholarAvatar } from "~/components/scholar-avatar";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { lessonAudioUrl } from "~/data/audio.server";
 import { getBook } from "~/data/curriculum";
 import { getScholar, getSeries, seriesForBook } from "~/data/explanations";
 import { useLocalize } from "~/lib/localize";
@@ -18,7 +19,12 @@ export async function loader({ params }: Route.LoaderArgs) {
   const s = getSeries(params.seriesId);
   const n = Number(params.lesson);
   if (!s || !s.lessons.some((l) => l.n === n)) throw data(null, { status: 404 });
-  return { seriesId: s.id, lesson: n, title: getBook(s.bookId)!.book.title.ar };
+  return {
+    seriesId: s.id,
+    lesson: n,
+    title: getBook(s.bookId)!.book.title.ar,
+    audioUrl: lessonAudioUrl(s.id, n),
+  };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -75,11 +81,11 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
         <BackLink to={`${href("/books/:bookId", { bookId: book.id })}?s=${s.scholarId}`}>
           <span lang={isAr ? "ar" : undefined}>{isAr ? book.title.ar : book.title.en}</span>
         </BackLink>
-        {lesson.audioUrl ? (
+        {loaderData.audioUrl ? (
           <AudioLesson
             key={noteKey}
             id={noteKey}
-            src={lesson.audioUrl}
+            src={loaderData.audioUrl}
             book={book}
             hue={subject.hue}
             artist={l(scholar.name)}

@@ -2,6 +2,9 @@
 // without any simply shows no explanations yet.
 
 import type { Localized } from "./curriculum";
+// Series added from the source research (other scholars and hosts). Only durations live
+// here; their audio URLs are in generated/audio-urls.json, read on the server by audio.server.ts.
+import generatedJson from "./generated/series.json";
 
 export type Scholar = {
   id: string;
@@ -27,12 +30,18 @@ export type Series = {
   source?: { name: Localized; url: string };
 };
 
+const generated = generatedJson as {
+  scholars: Scholar[];
+  series: { id: string; bookId: string; scholarId: string; source: { name: Localized; url: string }; minutes: number[] }[];
+};
+
 export const scholars: Scholar[] = [
   { id: "uthaymin", name: { ar: "محمد بن صالح العثيمين", en: "Muḥammad ibn Ṣāliḥ al-ʿUthaymīn" }, hue: 163 },
   { id: "fawzan", name: { ar: "صالح بن فوزان الفوزان", en: "Ṣāliḥ al-Fawzān" }, hue: 85 },
   { id: "salih-alash", name: { ar: "صالح بن عبد العزيز آل الشيخ", en: "Ṣāliḥ Āl al-Shaykh" }, hue: 220 },
   { id: "badr", name: { ar: "عبد الرزاق البدر", en: "ʿAbd al-Razzāq al-Badr" }, hue: 30 },
   { id: "abbad", name: { ar: "عبد المحسن العباد", en: "ʿAbd al-Muḥsin al-ʿAbbād" }, hue: 285 },
+  ...generated.scholars,
 ];
 
 /** A series hosted as one archive.org item, files named 01.mp3, 02.mp3, … */
@@ -329,6 +338,15 @@ export const series: Series[] = [
       43, 37, 34, 34, 37, 34, 39, 40, 32, 38, 41, 40, 38, 34, 42, 38, 34, 35, 33,
     ],
     { 48: "n", 64: "n", 71: "n", 97: "n", 172: "n", 193: "n2", 353: "n", 360: "n", 401: "n" },
+  ),
+  ...generated.series.map(
+    (g): Series => ({
+      id: g.id,
+      bookId: g.bookId,
+      scholarId: g.scholarId,
+      source: g.source,
+      lessons: g.minutes.map((m, i) => ({ n: i + 1, minutes: m })),
+    }),
   ),
 ];
 
