@@ -22,6 +22,8 @@ async function main() {
       detection: { order: ["htmlTag"], caches: [] },
       // Namespaces are served by the loader route below.
       backend: { loadPath: "/api/loaders/locales/{{lng}}/{{ns}}" },
+      // React escapes rendered text already (must match the server setting).
+      interpolation: { escapeValue: false },
     });
 
   startTransition(() => {

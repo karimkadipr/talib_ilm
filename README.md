@@ -34,7 +34,7 @@ Data:
 - `app/lib/progress.ts` — progress, streak and notes in `localStorage` — there is no login by design.
 - `app/lib/schedule.ts` — weekday → science (week starts Saturday), current book, progress maths.
 
-Design: ink-black with a green cast, emerald primary, gold for streaks; Amiri for Arabic titles,
+Design: ink-black with a green cast, emerald primary, gold for streaks; Readex Pro for Arabic UI text, Noto Naskh Arabic for Arabic titles, Amiri for the adhkar,
 generated typographic book covers, an eight-point-star (khatam) pattern (`bg-khatam`), and a
 per-science hue set with `style={{ "--hue": n }}` + the `tint-*` utilities in `app/app.css`.
 Arabic strings inside other-language pages use `lang="ar"` (not `dir="rtl"`) so they render RTL

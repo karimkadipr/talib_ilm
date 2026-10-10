@@ -1,10 +1,12 @@
 import { cn } from "cn";
-import { CalendarDays, Flame, Play, Sun } from "lucide-react";
+import { BookOpen, CalendarDays, Flame, HandHeart, Play, Sun } from "lucide-react";
 import { href, Link, NavLink, useNavigation } from "react-router";
 import { LanguageSwitcher } from "~/components/language-switcher";
 import { LogoMark } from "~/components/logo";
-import { days, getSubject } from "~/data/curriculum";
+import { ProgrammeToggle } from "~/components/programme-toggle";
+import { categories, itemInfo } from "~/data/categories";
 import { useLocalize } from "~/lib/localize";
+import { usePreferences } from "~/lib/preferences";
 import { streak, useProgress } from "~/lib/progress";
 
 function navClass({ isActive }: { isActive: boolean }) {
@@ -16,8 +18,14 @@ function navClass({ isActive }: { isActive: boolean }) {
   );
 }
 
+function CategoryIcon({ id, className }: { id: string; className?: string }) {
+  const Icon = id === "adhkar" ? HandHeart : BookOpen;
+  return <Icon className={className} />;
+}
+
 function Sidebar() {
   const { l, t } = useLocalize();
+  const { programme } = usePreferences();
 
   return (
     <aside className="fixed inset-y-0 start-0 z-30 hidden w-64 flex-col border-e bg-sidebar lg:flex">
@@ -27,41 +35,51 @@ function Sidebar() {
       </Link>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
-        <NavLink to="/" end className={navClass}>
-          <CalendarDays className="size-4" />
-          {t("nav.program")}
-        </NavLink>
-        <NavLink to={href("/today")} className={navClass}>
-          <Sun className="size-4" />
-          {t("nav.today")}
-        </NavLink>
+        {programme && (
+          <div className="space-y-1 pb-4">
+            <NavLink to="/" end className={navClass}>
+              <CalendarDays className="size-4" />
+              {t("nav.program")}
+            </NavLink>
+            <NavLink to={href("/today")} className={navClass}>
+              <Sun className="size-4" />
+              {t("nav.today")}
+            </NavLink>
+          </div>
+        )}
 
-        <p className="px-3 pt-6 pb-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-          {t("nav.week")}
-        </p>
-        {days.map((day) => (
-          <div key={day.id} className="pb-1">
-            <p className="px-3 pt-1 text-[11px] text-muted-foreground/70">{l(day.name)}</p>
-            {day.subjects.map((id) => {
-              const subject = getSubject(id)!;
-              return (
-                <NavLink
-                  key={id}
-                  to={href("/subjects/:subjectId", { subjectId: id })}
-                  className={navClass}
-                  style={{ "--hue": subject.hue } as React.CSSProperties}
-                >
-                  <span className="tint-solid size-2 rounded-full" />
-                  <span className="truncate">{l(subject.name)}</span>
-                </NavLink>
-              );
-            })}
+        {categories.map((category) => (
+          <div key={category.id} className="space-y-1">
+            <NavLink
+              to={href("/categories/:categoryId", { categoryId: category.id })}
+              className={(s) => cn(navClass(s), "font-medium text-sidebar-foreground")}
+            >
+              <CategoryIcon id={category.id} className="size-4" />
+              <span className="truncate">{l(category.name)}</span>
+            </NavLink>
+            <div className="ms-5 space-y-0.5 border-s ps-2">
+              {category.items.map((item) => {
+                const info = itemInfo(item);
+                return (
+                  <NavLink
+                    key={item.id}
+                    to={info.to}
+                    className={navClass}
+                    style={{ "--hue": info.hue } as React.CSSProperties}
+                  >
+                    <span className="tint-solid size-2 shrink-0 rounded-full" />
+                    <span className="truncate">{l(info.name)}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
           </div>
         ))}
       </nav>
 
-      <div className="m-3 rounded-xl border bg-card/60 p-3 text-xs text-muted-foreground">
-        {t("shell.storageNotice")}
+      <div className="m-3 space-y-3 rounded-xl border bg-card/60 p-3">
+        <ProgrammeToggle hint={false} />
+        <p className="text-xs text-muted-foreground">{t("shell.storageNotice")}</p>
       </div>
     </aside>
   );
@@ -83,8 +101,9 @@ function StreakPill() {
 }
 
 function MobileNav() {
-  const { t } = useLocalize();
+  const { l, t } = useLocalize();
   const p = useProgress();
+  const { programme } = usePreferences();
   const item = ({ isActive }: { isActive: boolean }) =>
     cn(
       "flex flex-1 flex-col items-center gap-1 py-2 text-[11px]",
@@ -92,18 +111,30 @@ function MobileNav() {
     );
   const resume = p.last
     ? href("/watch/:seriesId/:lesson", { seriesId: p.last.seriesId, lesson: String(p.last.lesson) })
-    : href("/today");
+    : programme
+      ? href("/today")
+      : href("/categories/:categoryId", { categoryId: categories[0].id });
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
-      <NavLink to="/" end className={item}>
-        <CalendarDays className="size-5" />
-        {t("nav.program")}
-      </NavLink>
-      <NavLink to={href("/today")} className={item}>
-        <Sun className="size-5" />
-        {t("nav.today")}
-      </NavLink>
+      {programme && (
+        <NavLink to="/" end className={item}>
+          <CalendarDays className="size-5" />
+          {t("nav.program")}
+        </NavLink>
+      )}
+      {programme && (
+        <NavLink to={href("/today")} className={item}>
+          <Sun className="size-5" />
+          {t("nav.today")}
+        </NavLink>
+      )}
+      {categories.map((category) => (
+        <NavLink key={category.id} to={href("/categories/:categoryId", { categoryId: category.id })} className={item}>
+          <CategoryIcon id={category.id} className="size-5" />
+          {l(category.name)}
+        </NavLink>
+      ))}
       <NavLink to={resume} className={item}>
         <Play className="size-5" />
         {t("nav.continue")}

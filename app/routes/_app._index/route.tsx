@@ -1,15 +1,21 @@
 import { ArrowUpRight, ChevronDown, Layers, Repeat } from "lucide-react";
-import { href, Link } from "react-router";
+import { href, Link, redirect } from "react-router";
 import { ProgressRing } from "~/components/progress-ring";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "~/components/ui/collapsible";
 import { countBooks, days, getSubject, subjects, suggestedOrder } from "~/data/curriculum";
 import { useLocalize } from "~/lib/localize";
 import { useProgress } from "~/lib/progress";
 import { subjectProgress } from "~/lib/schedule";
+import { DEFAULT_CATEGORY } from "~/data/categories";
 import { getInstance } from "~/middleware/i18next";
+import { getPreferences } from "~/services/cookies/preferences.cookie.server";
 import type { Route } from "./+types/route";
 
-export async function loader({ context }: Route.LoaderArgs) {
+export async function loader({ context, request }: Route.LoaderArgs) {
+  // With the weekly programme turned off, the site opens on the default category.
+  if (!(await getPreferences(request)).programme) {
+    throw redirect(href("/categories/:categoryId", { categoryId: DEFAULT_CATEGORY }));
+  }
   return { title: getInstance(context).t("program.title") };
 }
 

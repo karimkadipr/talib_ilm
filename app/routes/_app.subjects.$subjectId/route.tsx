@@ -5,9 +5,11 @@ import { BookCover } from "~/components/book-cover";
 import { ProgressRing } from "~/components/progress-ring";
 import { ScholarAvatar } from "~/components/scholar-avatar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "~/components/ui/collapsible";
+import { categoryOf } from "~/data/categories";
 import { getDayOfSubject, getSubject, type Book, type Entry, type Subject } from "~/data/curriculum";
 import { getScholar, seriesForBook } from "~/data/explanations";
 import { useLocalize } from "~/lib/localize";
+import { usePreferences } from "~/lib/preferences";
 import { useProgress, type ProgressState } from "~/lib/progress";
 import { entryStatus, groupProgress, subjectProgress } from "~/lib/schedule";
 import type { Route } from "./+types/route";
@@ -99,6 +101,8 @@ export default function SubjectPage({ loaderData }: Route.ComponentProps) {
   const { l, t, num, isAr } = useLocalize();
   const sp = subjectProgress(subject, p);
   const sibling = day.subjects.find((id) => id !== subject.id);
+  const category = categoryOf("subject", subject.id);
+  const { programme } = usePreferences();
 
   return (
     <div style={{ "--hue": subject.hue } as React.CSSProperties} className="space-y-8">
@@ -107,8 +111,15 @@ export default function SubjectPage({ loaderData }: Route.ComponentProps) {
         <div className="relative flex items-start justify-between gap-6">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="tint-bg tint-fg rounded-full px-2.5 py-1 font-medium">{l(day.name)}</span>
-              {sibling && (
+              {category && (
+                <Link
+                  to={href("/categories/:categoryId", { categoryId: category.id })}
+                  className="tint-bg tint-fg rounded-full px-2.5 py-1 font-medium hover:opacity-80"
+                >
+                  {l(category.name)}
+                </Link>
+              )}
+              {programme && sibling && (
                 <Link
                   to={href("/subjects/:subjectId", { subjectId: sibling })}
                   className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-muted-foreground hover:text-foreground"

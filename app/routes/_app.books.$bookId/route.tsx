@@ -141,7 +141,7 @@ function LessonList({ s, bookId }: { s: Series; bookId: string }) {
 }
 
 export default function BookPage({ loaderData }: Route.ComponentProps) {
-  const { book, subject, group, entry, day } = getBook(loaderData.bookId)!;
+  const { book, subject, group, entry } = getBook(loaderData.bookId)!;
   const p = useProgress();
   const { l, t, num, isAr } = useLocalize();
   const [params] = useSearchParams();
@@ -164,7 +164,7 @@ export default function BookPage({ loaderData }: Route.ComponentProps) {
           <div className="min-w-0 flex-1">
             <nav className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
               <Link to={href("/subjects/:subjectId", { subjectId: subject.id })} className="hover:text-foreground">
-                {l(day.name)} · {l(subject.name)}
+                {l(subject.name)}
               </Link>
               <ChevronRight className="size-3 rtl:rotate-180" />
               <span>{group.level ? t("level.n", { n: num(group.level) }) : l(group.label!)}</span>

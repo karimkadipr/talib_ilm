@@ -13,6 +13,7 @@ import type { Route } from "./+types/root";
 import "./app.css";
 import { getLanguageOrFallback } from "~/lib/i18n.constants";
 import { getLocale, i18nextMiddleware } from "~/middleware/i18next";
+import { getPreferences } from "~/services/cookies/preferences.cookie.server";
 
 // Registers the remix-i18next server middleware (locale detection).
 export const middleware: Route.MiddlewareFunction[] = [i18nextMiddleware];
@@ -20,8 +21,9 @@ export const middleware: Route.MiddlewareFunction[] = [i18nextMiddleware];
 // Default namespace loaded for the root route.
 export const handle = { i18n: "common" };
 
-export async function loader({ context }: Route.LoaderArgs) {
-  return { locale: getLanguageOrFallback(getLocale(context)) };
+export async function loader({ context, request }: Route.LoaderArgs) {
+  const { programme } = await getPreferences(request);
+  return { locale: getLanguageOrFallback(getLocale(context)), programme };
 }
 
 export const links: Route.LinksFunction = () => [
@@ -33,7 +35,7 @@ export const links: Route.LinksFunction = () => [
   },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Amiri:wght@400;700&display=swap",
+    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Readex+Pro:wght@160..700&family=Noto+Naskh+Arabic:wght@400..700&family=Amiri:wght@400;700&display=swap",
   },
 ];
 

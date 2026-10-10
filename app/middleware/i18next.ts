@@ -17,6 +17,8 @@ export const [i18nextMiddleware, getLocale, getInstance] =
       defaultNS: "common",
       fallbackNS: "common",
       ns: ["common"],
+      // React escapes rendered text already; escaping here too shows "&amp;" in names like "Uṣūl al-Fiqh & …".
+      interpolation: { escapeValue: false },
     },
     plugins: [initReactI18next],
   });

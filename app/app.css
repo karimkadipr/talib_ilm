@@ -5,12 +5,14 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* Inter has no Arabic glyphs, so Arabic text falls through to Plex Arabic. */
-  --font-sans: "Inter", "IBM Plex Sans Arabic", ui-sans-serif, system-ui,
+  /* Inter's Latin comes first, so only Arabic text falls through to Readex Pro. */
+  --font-sans: "Inter", "Readex Pro", ui-sans-serif, system-ui,
     sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
     "Noto Color Emoji";
-  /* Classical naskh for book titles and other display Arabic. */
-  --font-arabic: "Amiri", "IBM Plex Sans Arabic", serif;
+  /* Modern naskh with clean tashkeel for book titles and other display Arabic. */
+  --font-arabic: "Noto Naskh Arabic", "Readex Pro", serif;
+  /* Classical naskh for the adhkar texts. */
+  --font-adhkar: "Amiri", "Noto Naskh Arabic", serif;
 
   /* Audio player: equaliser bars, loading shimmer; page-loading bar. */
   --animate-eq: eq 0.9s ease-in-out infinite;
@@ -197,6 +199,9 @@ body [lang="ar"] > li {
   text-align: left;
 }
 [dir="rtl"] body [lang="ar"],
-[dir="rtl"] body [lang="ar"] > li {
+[dir="rtl"] body [lang="ar"] > li,
+/* A right-to-left section (e.g. the adhkar page) stays right-aligned in any UI language. */
+body [dir="rtl"] [lang="ar"],
+body [dir="rtl"][lang="ar"] {
   text-align: right;
 }
