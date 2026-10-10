@@ -84,13 +84,18 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
         {loaderData.audioUrl ? (
           <AudioLesson
             key={noteKey}
-            id={noteKey}
-            src={loaderData.audioUrl}
-            book={book}
-            hue={subject.hue}
-            artist={l(scholar.name)}
-            label={t("lesson.n", { n: num(n) })}
-            onEnded={() => progress.toggleWatched(s.id, book.id, n, true)}
+            track={{
+              id: noteKey,
+              src: loaderData.audioUrl,
+              book,
+              hue: subject.hue,
+              artist: l(scholar.name),
+              label: t("lesson.n", { n: num(n) }),
+              href: lessonHref(n),
+              duration: lesson.minutes * 60,
+              // Marked as listened even if the lesson ends while the listener is on another page.
+              onEnded: () => progress.toggleWatched(s.id, book.id, n, true),
+            }}
           />
         ) : (
           <Player videoId={lesson.videoId}>

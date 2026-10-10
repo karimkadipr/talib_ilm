@@ -3,29 +3,7 @@ import { AlertTriangle, ExternalLink, Pause, Play, RotateCcw, RotateCw } from "l
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BookCover } from "~/components/book-cover";
-import type { Book } from "~/data/curriculum";
-
-const SPEEDS = [1, 1.25, 1.5, 2];
-const BACK = 15;
-const FORWARD = 30;
-const POSITION_KEY = (id: string) => `islamic-studies:position:${id}`;
-
-function readPosition(id: string) {
-  try {
-    return Number(localStorage.getItem(POSITION_KEY(id))) || 0;
-  } catch {
-    return 0;
-  }
-}
-
-function writePosition(id: string, seconds: number) {
-  try {
-    if (seconds > 0) localStorage.setItem(POSITION_KEY(id), String(Math.floor(seconds)));
-    else localStorage.removeItem(POSITION_KEY(id));
-  } catch {
-    // Storage blocked: the lesson just restarts from the beginning next time.
-  }
-}
+import { BACK, FORWARD, player, readPosition, SPEEDS, type Track, usePlayer, writePosition } from "~/lib/player";
 
 /** h:mm:ss (or m:ss) in the page language's digits. */
 export function useClock() {
@@ -41,149 +19,62 @@ export function useClock() {
   };
 }
 
-type Status = "loading" | "ready" | "error";
-
 /**
- * Audio lesson player. Remembers where you stopped in each lesson (they run
- * 1–1½ hours), shows loading/buffering/error states, and reports when the
- * recording finishes.
+ * Full player for a page's recording, drawn over the app-wide player (~/lib/player). While this
+ * recording is the one loaded it shows and controls the live playback. Otherwise it waits, ready
+ * at its saved position, and only takes over (stopping whatever else is playing) when the listener
+ * presses play. Lessons run 1–1½ hours, so the position is remembered per recording.
  */
-export function AudioLesson({
-  id,
-  src,
-  book,
-  hue,
-  artist,
-  label,
-  autoPlay = false,
-  onEnded,
-}: {
-  /** Stable lesson key, used to remember the playback position. */
-  id: string;
-  src: string;
-  book: Book;
-  hue: number;
-  /** Scholar's name, shown on the lock screen / media controls. */
-  artist: string;
-  /** e.g. "Lesson 3", shown on the lock screen / media controls. */
-  label: string;
-  /** Start playing once loaded, e.g. when the listener picked this recording from a list. */
-  autoPlay?: boolean;
-  onEnded: () => void;
-}) {
+export function AudioLesson({ track }: { track: Track }) {
   const { t, i18n } = useTranslation();
   const clock = useClock();
-  const audio = useRef<HTMLAudioElement>(null);
-  const lastSaved = useRef(0);
-  const restored = useRef(false);
+  const s = usePlayer();
+  const active = s.track?.id === track.id;
   const dragging = useRef(false);
-
-  const [status, setStatus] = useState<Status>("loading");
-  const [playing, setPlaying] = useState(false);
-  const [buffering, setBuffering] = useState(false);
-  const [time, setTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [buffered, setBuffered] = useState(0);
   const [scrub, setScrub] = useState<number | null>(null);
-  const [speed, setSpeed] = useState(1);
-  const [resumedAt, setResumedAt] = useState<number | null>(null);
-
-  function onMetadata(el: HTMLAudioElement) {
-    setDuration(el.duration);
-    setStatus("ready");
-    if (restored.current) return;
-    restored.current = true;
-    const at = readPosition(id);
-    if (at && at < el.duration - 5) {
-      el.currentTime = at;
-      setTime(at);
-      setResumedAt(at);
-    }
-    if (autoPlay) void el.play().catch(() => {});
-  }
-
-  function updateBuffered(el: HTMLAudioElement) {
-    const ranges = el.buffered;
-    for (let i = 0; i < ranges.length; i++) {
-      if (ranges.start(i) <= el.currentTime && el.currentTime <= ranges.end(i)) {
-        setBuffered(ranges.end(i));
-        return;
-      }
-    }
-  }
-
-  // The element may have loaded (or failed) before hydration attached the
-  // event handlers, so pick up its current state once on mount.
-  useEffect(() => {
-    const el = audio.current;
-    if (!el) return;
-    if (el.error) setStatus("error");
-    else if (el.readyState >= 1) onMetadata(el);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Before this recording is loaded: where it would start (read after mount; SSR has no storage).
+  const [saved, setSaved] = useState(0);
+  const [savedNote, setSavedNote] = useState(false);
 
   useEffect(() => {
-    if (audio.current) audio.current.playbackRate = speed;
-  }, [speed]);
+    const at = readPosition(track.id);
+    setSaved(at);
+    setSavedNote(at > 0);
+  }, [track.id]);
 
-  // Hide the "picked up where you left off" note after a while.
+  // While this page shows the recording, the mini player steps aside.
   useEffect(() => {
-    if (resumedAt === null) return;
-    const timer = setTimeout(() => setResumedAt(null), 8000);
-    return () => clearTimeout(timer);
-  }, [resumedAt]);
+    player.enterScreen(track.id);
+    return () => player.leaveScreen(track.id);
+  }, [track.id]);
+
+  const status = active ? s.status : "idle";
+  const playing = active && s.playing;
+  const buffering = active && s.buffering;
+  const duration = (active && s.duration) || track.duration || 0;
+  const time = active ? s.time : saved;
+  const buffered = active ? s.buffered : 0;
+  const resumedAt = active ? s.resumedAt : savedNote ? saved : null;
+  const otherPlaying = !active && !!s.track && s.playing;
 
   const toggle = () => {
-    const el = audio.current;
-    if (!el || status !== "ready") return;
-    if (el.paused) void el.play().catch(() => {});
-    else el.pause();
+    if (!active || s.status === "error") player.play(track);
+    else player.toggle();
   };
 
   const seekTo = (seconds: number) => {
-    const el = audio.current;
-    if (!el || !duration) return;
-    el.currentTime = Math.min(Math.max(0, seconds), duration - 0.5);
-    setTime(el.currentTime);
+    if (active) return player.seek(seconds);
+    // Not loaded yet: just move where it will start.
+    const at = Math.min(Math.max(0, Math.floor(seconds)), Math.max(0, duration - 1));
+    writePosition(track.id, at);
+    setSaved(at);
+    setSavedNote(false);
   };
-  const skip = (delta: number) => audio.current && seekTo(audio.current.currentTime + delta);
-
-  const retry = () => {
-    const el = audio.current;
-    if (!el) return;
-    restored.current = false;
-    setStatus("loading");
-    el.load();
+  const skip = (delta: number) => seekTo(time + delta);
+  const startOver = () => {
+    seekTo(0);
+    if (active) player.clearResumed();
   };
-
-  // Lock screen, headphones and media keys.
-  useEffect(() => {
-    if (!("mediaSession" in navigator) || typeof MediaMetadata === "undefined") return;
-    const session = navigator.mediaSession;
-    session.metadata = new MediaMetadata({ title: book.title.ar, artist, album: label });
-    const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
-      ["play", () => void audio.current?.play().catch(() => {})],
-      ["pause", () => audio.current?.pause()],
-      ["seekbackward", (d) => skip(-(d.seekOffset ?? BACK))],
-      ["seekforward", (d) => skip(d.seekOffset ?? FORWARD)],
-      ["seekto", (d) => d.seekTime !== undefined && seekTo(d.seekTime)],
-    ];
-    for (const [action, handler] of handlers) {
-      try {
-        session.setActionHandler(action, handler);
-      } catch {
-        // Action not supported by this browser.
-      }
-    }
-    return () => {
-      for (const [action] of handlers) {
-        try {
-          session.setActionHandler(action, null);
-        } catch {}
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book, artist, label, duration]);
 
   // Space / k: play-pause. ← / j: back. → / l: forward. Ignored while typing.
   useEffect(() => {
@@ -219,68 +110,25 @@ export function AudioLesson({
           ? t("watch.buffering")
           : resumedAt !== null
             ? t("watch.resumedAt", { time: clock(resumedAt) })
-            : playing
-              ? t("watch.playing")
-              : t("watch.paused");
+            : otherPlaying
+              ? t("watch.otherPlaying")
+              : playing
+                ? t("watch.playing")
+                : t("watch.paused");
 
   return (
     <div
-      style={{ "--hue": hue } as React.CSSProperties}
+      style={{ "--hue": track.hue } as React.CSSProperties}
       className="relative overflow-hidden rounded-3xl border bg-[radial-gradient(90%_130%_at_20%_0%,oklch(0.3_0.07_var(--hue)),oklch(0.14_0.012_var(--hue)))] rtl:bg-[radial-gradient(90%_130%_at_80%_0%,oklch(0.3_0.07_var(--hue)),oklch(0.14_0.012_var(--hue)))]"
     >
       <div className="bg-khatam absolute inset-0 opacity-60 mask-[linear-gradient(to_bottom,black,transparent)]" />
 
-      <audio
-        ref={audio}
-        src={src}
-        preload="metadata"
-        onLoadedMetadata={(e) => onMetadata(e.currentTarget)}
-        onDurationChange={(e) => Number.isFinite(e.currentTarget.duration) && setDuration(e.currentTarget.duration)}
-        onTimeUpdate={(e) => {
-          const now = e.currentTarget.currentTime;
-          if (!dragging.current) setTime(now);
-          updateBuffered(e.currentTarget);
-          // Save at most every 5 seconds.
-          if (Math.abs(now - lastSaved.current) >= 5) {
-            lastSaved.current = now;
-            writePosition(id, now);
-          }
-        }}
-        onProgress={(e) => updateBuffered(e.currentTarget)}
-        onPlay={() => {
-          setPlaying(true);
-          setResumedAt(null);
-        }}
-        onPause={(e) => {
-          setPlaying(false);
-          writePosition(id, e.currentTarget.currentTime);
-        }}
-        onWaiting={() => setBuffering(true)}
-        onSeeking={() => setBuffering(true)}
-        onPlaying={() => setBuffering(false)}
-        onCanPlay={() => setBuffering(false)}
-        onSeeked={(e) => {
-          setBuffering(false);
-          updateBuffered(e.currentTarget);
-        }}
-        onError={() => {
-          setStatus("error");
-          setPlaying(false);
-          setBuffering(false);
-        }}
-        onEnded={() => {
-          setPlaying(false);
-          writePosition(id, 0);
-          onEnded();
-        }}
-      />
-
       <div className="relative grid items-center gap-6 p-5 sm:grid-cols-[auto_1fr] sm:gap-8 sm:p-8">
-        {/* Cover with an equaliser that moves while the lesson plays. */}
+        {/* Cover with an equaliser that moves while the recording plays. */}
         <div className="relative mx-auto">
           <BookCover
-            book={book}
-            hue={hue}
+            book={track.book}
+            hue={track.hue}
             size="md"
             className={cn(
               "shadow-2xl shadow-black/50 transition-transform duration-500",
@@ -306,14 +154,11 @@ export function AudioLesson({
 
         <div className="min-w-0">
           {status === "error" ? (
-            <ErrorPanel src={src} onRetry={retry} />
+            <ErrorPanel src={track.src} onRetry={() => player.retry()} />
           ) : (
             <>
               {/* Status line */}
-              <p
-                aria-live="polite"
-                className="flex min-h-5 items-center gap-2 text-xs text-white/70"
-              >
+              <p aria-live="polite" className="flex min-h-5 items-center gap-2 text-xs text-white/70">
                 <span
                   className={cn(
                     "size-1.5 shrink-0 rounded-full",
@@ -322,14 +167,7 @@ export function AudioLesson({
                 />
                 <span className="truncate">{caption}</span>
                 {resumedAt !== null && !busy && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      seekTo(0);
-                      setResumedAt(null);
-                    }}
-                    className="tint-fg shrink-0 font-medium hover:underline"
-                  >
+                  <button type="button" onClick={startOver} className="tint-fg shrink-0 font-medium hover:underline">
                     {t("watch.startOver")}
                   </button>
                 )}
@@ -363,7 +201,7 @@ export function AudioLesson({
                   max={duration || 0}
                   step={1}
                   value={Math.floor(shown)}
-                  disabled={loading}
+                  disabled={loading || !duration}
                   aria-label={t("watch.seek")}
                   aria-valuetext={`${clock(shown)} / ${clock(duration)}`}
                   onPointerDown={() => (dragging.current = true)}
@@ -383,7 +221,7 @@ export function AudioLesson({
 
               {/* Times */}
               <div className="mt-1.5 flex justify-between text-xs text-white/60 tabular-nums">
-                {loading ? (
+                {loading || !duration ? (
                   <>
                     <span className="h-3.5 w-10 rounded bg-white/10 motion-safe:animate-pulse" />
                     <span className="h-3.5 w-12 rounded bg-white/10 motion-safe:animate-pulse" />
@@ -436,18 +274,18 @@ export function AudioLesson({
                   aria-label={t("watch.speed")}
                   className="flex items-center gap-0.5 rounded-full border border-white/10 bg-black/25 p-1 text-xs"
                 >
-                  {SPEEDS.map((s) => (
+                  {SPEEDS.map((x) => (
                     <button
-                      key={s}
+                      key={x}
                       type="button"
-                      onClick={() => setSpeed(s)}
-                      aria-pressed={speed === s}
+                      onClick={() => player.setSpeed(x)}
+                      aria-pressed={s.speed === x}
                       className={cn(
                         "rounded-full px-2.5 py-1 tabular-nums transition-colors",
-                        speed === s ? "bg-white/15 text-white" : "text-white/55 hover:text-white",
+                        s.speed === x ? "bg-white/15 text-white" : "text-white/55 hover:text-white",
                       )}
                     >
-                      {numberFormat.format(s)}×
+                      {numberFormat.format(x)}×
                     </button>
                   ))}
                 </div>
@@ -493,7 +331,7 @@ function SkipButton({
 }
 
 /** A tinted arc spinning around the play button while loading or buffering. */
-function Spinner() {
+export function Spinner() {
   return (
     <svg aria-hidden viewBox="0 0 72 72" className="absolute -inset-1 size-[calc(100%+0.5rem)] animate-spin [animation-duration:1.1s]">
       <circle cx="36" cy="36" r="34" fill="none" strokeWidth="3" className="stroke-white/10" />

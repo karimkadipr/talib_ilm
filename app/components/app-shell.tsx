@@ -4,9 +4,11 @@ import { href, Link, NavLink, useNavigation } from "react-router";
 import { DuaHandsIcon } from "~/components/dua-hands-icon";
 import { LanguageSwitcher } from "~/components/language-switcher";
 import { LogoMark } from "~/components/logo";
+import { MiniPlayer } from "~/components/mini-player";
 import { ProgrammeToggle } from "~/components/programme-toggle";
 import { categories, itemInfo } from "~/data/categories";
 import { useLocalize } from "~/lib/localize";
+import { useMiniPlayerVisible } from "~/lib/player";
 import { usePreferences } from "~/lib/preferences";
 import { streak, useProgress } from "~/lib/progress";
 
@@ -117,7 +119,7 @@ function MobileNav() {
       : href("/categories/:categoryId", { categoryId: categories[0].id });
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+    <nav className="flex border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
       {programme && (
         <NavLink to="/" end className={item}>
           <CalendarDays className="size-5" />
@@ -165,6 +167,7 @@ function NavigationProgress() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { t } = useLocalize();
+  const mini = useMiniPlayerVisible();
   return (
     <div className="min-h-dvh">
       <NavigationProgress />
@@ -180,9 +183,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <LanguageSwitcher />
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-4 pt-6 pb-28 sm:px-6 lg:pb-12">{children}</main>
+        <main
+          className={cn("mx-auto max-w-6xl px-4 pt-6 sm:px-6", mini ? "pb-44 lg:pb-32" : "pb-28 lg:pb-12")}
+        >
+          {children}
+        </main>
       </div>
-      <MobileNav />
+      {/* Bottom stack: the mini player (while something plays off-page) above the phone tab bar. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 lg:start-64">
+        <MiniPlayer />
+        <MobileNav />
+      </div>
     </div>
   );
 }

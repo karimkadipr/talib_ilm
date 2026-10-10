@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { AudioLines, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { useRef, useState } from "react";
-import { data, useSearchParams } from "react-router";
+import { data, href, useSearchParams } from "react-router";
 import { AudioLesson, useClock } from "~/components/audio-lesson";
 import { BackLink } from "~/components/back-link";
 import { ScholarAvatar } from "~/components/scholar-avatar";
@@ -9,6 +9,7 @@ import { categoryOf } from "~/data/categories";
 import { getReciter, surahAudioUrl } from "~/data/reciters";
 import { type Surah, surahs } from "~/data/surahs";
 import { useLocalize } from "~/lib/localize";
+import { player, type Track, usePlayer } from "~/lib/player";
 import type { Route } from "./+types/route";
 
 export async function loader({ params }: Route.LoaderArgs) {
@@ -56,22 +57,41 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
   const clock = useClock();
   const [params, setParams] = useSearchParams();
   const requested = Number(params.get("surah"));
-  const current = Number.isInteger(requested) && requested >= 1 && requested <= surahs.length ? requested : 1;
-  const surah = surahs[current - 1];
-  // Only start on its own once the listener has picked a surah, not on page load.
-  const [autoPlay, setAutoPlay] = useState(false);
+  // A surah of this reciter that's already playing (it may have moved on by itself) wins over the URL.
+  const loaded = usePlayer().track?.id;
+  const prefix = `quran:${reciter.id}:`;
+  const playingHere = loaded?.startsWith(prefix) ? Number(loaded.slice(prefix.length)) : 0;
+  const current =
+    playingHere || (Number.isInteger(requested) && requested >= 1 && requested <= surahs.length ? requested : 1);
   const [query, setQuery] = useState("");
-  const player = useRef<HTMLDivElement>(null);
+  const playerBox = useRef<HTMLDivElement>(null);
   const totalMinutes = Math.round(reciter.seconds.reduce((a, b) => a + b, 0) / 60);
   const shown = surahs.filter((s) => matches(s, query, l(s.meaning)));
 
+  // Built from plain values so it still works (and plays on) after the listener leaves this page.
+  function track(n: number): Track {
+    const surah = surahs[n - 1];
+    return {
+      id: `${prefix}${n}`,
+      src: surahAudioUrl(reciter, n),
+      book: { id: `surah-${n}`, title: { ar: `سورة ${surah.name}`, en: surah.translit }, author: reciter.name },
+      hue: reciter.hue,
+      artist: l(reciter.name),
+      label: t("quran.surah", { name: isAr ? surah.name : surah.translit }),
+      href: `${href("/reciters/:reciterId", { reciterId: reciter.id })}?surah=${n}`,
+      duration: reciter.seconds[n - 1],
+      // Recite on through the mushaf.
+      onEnded: () => n < surahs.length && player.play(track(n + 1)),
+    };
+  }
+
   function play(n: number) {
-    setAutoPlay(true);
+    player.play(track(n));
     setParams({ surah: String(n) }, { replace: true, preventScrollReset: true });
     // Below lg the player sits above the list, so bring it back into view.
     if (!window.matchMedia("(min-width: 1024px)").matches) {
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      player.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+      playerBox.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
     }
   }
 
@@ -101,18 +121,8 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start">
-        <div ref={player} className="scroll-mt-20 space-y-3 lg:sticky lg:top-22">
-          <AudioLesson
-            key={current}
-            id={`quran:${reciter.id}:${current}`}
-            src={surahAudioUrl(reciter, current)}
-            book={{ id: `surah-${current}`, title: { ar: `سورة ${surah.name}`, en: surah.translit }, author: reciter.name }}
-            hue={reciter.hue}
-            artist={l(reciter.name)}
-            label={t("quran.surah", { name: isAr ? surah.name : surah.translit })}
-            autoPlay={autoPlay}
-            onEnded={() => current < surahs.length && play(current + 1)}
-          />
+        <div ref={playerBox} className="scroll-mt-20 space-y-3 lg:sticky lg:top-22">
+          <AudioLesson key={current} track={track(current)} />
           <div className="flex items-center gap-2">
             <button
               type="button"
