@@ -91,13 +91,16 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
               </p>
             )}
             <p className="mt-2 text-sm text-muted-foreground">
-              {l(reciter.riwayah)} · {t("quran.surahs", { count: reciter.seconds.length })} · {duration(totalMinutes)}
+              {/* Keep each fact whole when the line wraps (e.g. "114" with "سورة"). */}
+              <span className="whitespace-nowrap">{l(reciter.riwayah)}</span> ·{" "}
+              <span className="whitespace-nowrap">{t("quran.surahs", { count: reciter.seconds.length })}</span> ·{" "}
+              <span className="whitespace-nowrap">{duration(totalMinutes)}</span>
             </p>
           </div>
         </div>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start">
         <div ref={player} className="scroll-mt-20 space-y-3 lg:sticky lg:top-22">
           <AudioLesson
             key={current}
@@ -144,7 +147,7 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
             <h2 className="text-lg font-semibold">{t("quran.surahsTitle")}</h2>
             <span className="text-sm text-muted-foreground tabular-nums">{num(surahs.length)}</span>
           </div>
-          <label className="flex items-center gap-2 rounded-xl border bg-card px-3 focus-within:ring-2 focus-within:ring-ring/50">
+          <label className="flex cursor-text items-center gap-2 rounded-xl border bg-card px-3 focus-within:ring-2 focus-within:ring-ring/50">
             <Search className="size-4 shrink-0 text-muted-foreground" />
             <input
               type="search"
@@ -171,7 +174,7 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
                       onClick={() => play(s.n)}
                       aria-current={active ? "true" : undefined}
                       className={cn(
-                        "flex w-full items-center gap-3 px-4 py-3 text-start transition-colors outline-none focus-visible:bg-accent/60",
+                        "flex w-full items-center gap-3 px-3 py-3 text-start sm:px-4 transition-colors outline-none focus-visible:bg-accent/60",
                         active ? "tint-bg" : "hover:bg-accent/50",
                       )}
                     >
@@ -196,7 +199,9 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
                         </span>
                         <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                           {!isAr && <>{l(s.meaning)} · </>}
-                          {t("quran.ayahs", { count: s.ayahs })} · {t(`quran.${s.revelation}`)}
+                          {t("quran.ayahs", { count: s.ayahs })}
+                          {/* Too long for a phone row alongside the meaning; shown from sm up. */}
+                          <span className="max-sm:hidden"> · {t(`quran.${s.revelation}`)}</span>
                         </span>
                       </span>
                       <span dir="ltr" className="shrink-0 text-xs text-muted-foreground tabular-nums">

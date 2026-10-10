@@ -163,6 +163,16 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+  /* Tailwind v4 resets buttons to the default arrow; anything clickable gets the hand. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  select,
+  label[for],
+  input[type="checkbox"],
+  input[type="radio"] {
+    cursor: pointer;
+  }
 }
 
 /* Per-subject tint. Set `--hue` inline (style={{ "--hue": 160 }}) and use these
@@ -178,6 +188,37 @@
 }
 @utility tint-solid {
   background-color: oklch(0.78 0.12 var(--hue, 163));
+}
+
+/* Slim, rounded scrollbar for horizontal card rails: no arrow buttons, a
+   transparent track, and a thumb that brightens while the rail is hovered.
+   WebKit/Blink use the pseudo-elements (they ignore them once scrollbar-color
+   is set, so the standard properties are scoped to browsers without them). */
+@utility scrollbar-slim {
+  &::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, var(--muted-foreground) 25%, transparent);
+    border-radius: 9999px;
+  }
+  &:hover::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, var(--muted-foreground) 45%, transparent);
+  }
+  &::-webkit-scrollbar-thumb:active {
+    background-color: color-mix(in oklab, var(--primary) 70%, transparent);
+  }
+  &::-webkit-scrollbar-button {
+    display: none;
+  }
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent) transparent;
+  }
 }
 
 /* Eight-point star lattice (khatam) used behind hero areas and book covers. */

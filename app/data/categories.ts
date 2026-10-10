@@ -14,6 +14,8 @@ export type CategoryItem =
 export type Category = {
   id: string;
   name: Localized;
+  /** Shorter label for the mobile tab bar, where six items share the width. */
+  shortName?: Localized;
   description: Localized;
   items: CategoryItem[];
 };
@@ -24,6 +26,7 @@ export const categories: Category[] = [
   {
     id: "talab-al-ilm",
     name: L("طلب العلم", "Seeking Knowledge", "Quête du savoir"),
+    shortName: L("طلب العلم", "Knowledge", "Savoir"),
     description: L(
       "العلوم الشرعية وكتبها مرتّبة على المستويات، مع شروح العلماء المسجّلة.",
       "The Islamic sciences and their books, arranged by level, with scholars' recorded explanations.",
@@ -47,6 +50,7 @@ export const categories: Category[] = [
   {
     id: "quran",
     name: L("القرآن الكريم", "Qur'ān", "Coran"),
+    shortName: L("القرآن", "Qur'ān", "Coran"),
     description: L(
       "تلاوات المصحف كاملاً بأصوات القرّاء، سورةً سورة.",
       "Complete recitations of the Qur'ān by its reciters, surah by surah.",

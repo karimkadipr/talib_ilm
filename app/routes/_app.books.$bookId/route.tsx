@@ -4,6 +4,7 @@ import { data, href, Link, useSearchParams } from "react-router";
 import { BackLink } from "~/components/back-link";
 import { BookCover } from "~/components/book-cover";
 import { ScholarAvatar } from "~/components/scholar-avatar";
+import { ScrollRail } from "~/components/scroll-rail";
 import { Button } from "~/components/ui/button";
 import { Progress } from "~/components/ui/progress";
 import { getBook } from "~/data/curriculum";
@@ -237,11 +238,11 @@ export default function BookPage({ loaderData }: Route.ComponentProps) {
 
         {selected ? (
           <div className="space-y-5">
-            <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+            <ScrollRail className="-mx-4 flex snap-x gap-3 px-4 pb-3 sm:mx-0 sm:px-0">
               {explanations.map((s) => (
                 <ScholarCard key={s.id} s={s} selected={s.id === selected.id} />
               ))}
-            </div>
+            </ScrollRail>
             <LessonList key={selected.id} s={selected} bookId={book.id} />
           </div>
         ) : (

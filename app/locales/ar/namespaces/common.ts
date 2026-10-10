@@ -65,6 +65,8 @@ export default {
   "level.name3": "المتقدم",
   "level.name4": "للمتوسعين",
   "nav.back": "رجوع",
+  "nav.scrollPrev": "التمرير للخلف",
+  "nav.scrollNext": "التمرير للأمام",
   "nav.continue": "متابعة",
   "nav.loading": "جارٍ التحميل…",
   "nav.program": "البرنامج",

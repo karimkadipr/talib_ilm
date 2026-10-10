@@ -56,6 +56,8 @@ export default {
   "level.name3": "Avancé",
   "level.name4": "Spécialiste",
   "nav.back": "Retour",
+  "nav.scrollPrev": "Défiler vers l’arrière",
+  "nav.scrollNext": "Défiler vers l’avant",
   "nav.continue": "Reprendre",
   "nav.loading": "Chargement…",
   "nav.program": "Programme",

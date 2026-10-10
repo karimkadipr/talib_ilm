@@ -107,7 +107,7 @@ function MobileNav() {
   const { programme } = usePreferences();
   const item = ({ isActive }: { isActive: boolean }) =>
     cn(
-      "flex flex-1 flex-col items-center gap-1 py-2 text-[11px]",
+      "flex min-w-0 flex-1 flex-col items-center gap-1 py-2 text-[11px] tracking-tight max-[400px]:text-[10px]",
       isActive ? "text-primary" : "text-muted-foreground",
     );
   const resume = p.last
@@ -121,24 +121,24 @@ function MobileNav() {
       {programme && (
         <NavLink to="/" end className={item}>
           <CalendarDays className="size-5" />
-          {t("nav.program")}
+          <span className="max-w-full truncate">{t("nav.program")}</span>
         </NavLink>
       )}
       {programme && (
         <NavLink to={href("/today")} className={item}>
           <Sun className="size-5" />
-          {t("nav.today")}
+          <span className="max-w-full truncate">{t("nav.today")}</span>
         </NavLink>
       )}
       {categories.map((category) => (
         <NavLink key={category.id} to={href("/categories/:categoryId", { categoryId: category.id })} className={item}>
           <CategoryIcon id={category.id} className="size-5" />
-          {l(category.name)}
+          <span className="max-w-full truncate">{l(category.shortName ?? category.name)}</span>
         </NavLink>
       ))}
       <NavLink to={resume} className={item}>
         <Play className="size-5" />
-        {t("nav.continue")}
+        <span className="max-w-full truncate">{t("nav.continue")}</span>
       </NavLink>
     </nav>
   );
