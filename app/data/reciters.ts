@@ -14,10 +14,18 @@ export type Reciter = {
   seconds: number[];
   /** Where the recordings come from, credited on the reciter's page. */
   source: { name: Localized; url: string };
+  /** Square portrait in public/reciters/, from Wikimedia Commons; credited on the reciter's page. */
+  photo?: { src: string; author: string; license: string; url: string };
 };
 
 const hafs: Localized = { ar: "رواية حفص عن عاصم", en: "Ḥafṣ ʿan ʿĀṣim", fr: "Ḥafṣ ʿan ʿĀṣim" };
 const mp3quran = (path: string) => ({ name: { ar: "موقع MP3 Quran", en: "MP3 Quran" }, url: `https://mp3quran.net/${path}` });
+const commons = (id: string, file: string, author: string, license: string) => ({
+  src: `/reciters/${id}.jpg`,
+  author,
+  license,
+  url: `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(file.replaceAll(" ", "_"))}`,
+});
 
 export const reciters: Reciter[] = [
   {
@@ -36,6 +44,7 @@ export const reciters: Reciter[] = [
       29, 30, 17, 26, 35,
     ],
     source: mp3quran("ar/bader"),
+    photo: commons("badr-al-turki", "Photo of badr al-turki in 2023.jpg", "Abo.ibrahim0", "CC0"),
   },
   {
     id: "yasser-al-dosari",
@@ -53,6 +62,7 @@ export const reciters: Reciter[] = [
       36, 20, 24, 11, 21, 36,
     ],
     source: mp3quran("ar/yasser"),
+    photo: commons("yasser-al-dosari", "Yasser Al-Dosari (cropped).jpg", "MAL MALDIVE", "CC BY-SA 4.0"),
   },
   {
     id: "saad-al-ghamdi",
@@ -70,6 +80,7 @@ export const reciters: Reciter[] = [
       40, 28, 32, 18, 29, 36,
     ],
     source: mp3quran("ar/s_gmd"),
+    photo: commons("saad-al-ghamdi", "Saad al Ghamdi.jpg", "الشيخ هيثم الدخين", "CC BY-SA 4.0"),
   },
   {
     id: "mishary-alafasy",
@@ -87,6 +98,7 @@ export const reciters: Reciter[] = [
       58, 25, 54, 35, 42, 22, 33, 50,
     ],
     source: mp3quran("ar/afs"),
+    photo: commons("mishary-alafasy", "Мишари Рашид.jpg", "quranic.ru", "Copyrighted free use"),
   },
   {
     id: "muhammad-siddiq-al-minshawi",
@@ -104,6 +116,7 @@ export const reciters: Reciter[] = [
       42, 21, 46, 33, 36, 19, 30, 38,
     ],
     source: mp3quran("ar/minsh"),
+    photo: commons("muhammad-siddiq-al-minshawi", "Elminshwey.jpg", "Unknown author", "Public domain"),
   },
 ];
 

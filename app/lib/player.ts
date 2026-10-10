@@ -21,6 +21,8 @@ export type Track = {
   href: string;
   /** Known length in seconds, shown before the file has loaded. */
   duration?: number;
+  /** Square image (e.g. the reciter's portrait) for the mini player and the lock screen. */
+  artwork?: string;
   /** Runs when the recording finishes, even if the listener has moved to another page. */
   onEnded?: () => void;
 };
@@ -224,7 +226,14 @@ export const player = {
     el.src = track.src;
     el.load();
     if ("mediaSession" in navigator && typeof MediaMetadata !== "undefined") {
-      navigator.mediaSession.metadata = new MediaMetadata({ title: track.book.title.ar, artist: track.artist, album: track.label });
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.book.title.ar,
+        artist: track.artist,
+        album: track.label,
+        artwork: track.artwork
+          ? [{ src: new URL(track.artwork, location.href).href, sizes: "400x400", type: "image/jpeg" }]
+          : [],
+      });
     }
   },
   toggle() {

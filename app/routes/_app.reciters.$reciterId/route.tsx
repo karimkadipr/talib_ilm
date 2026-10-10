@@ -1,15 +1,17 @@
 import { cn } from "cn";
 import { AudioLines, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { useRef, useState } from "react";
-import { data, href, useSearchParams } from "react-router";
+import { data, useSearchParams } from "react-router";
 import { AudioLesson, useClock } from "~/components/audio-lesson";
 import { BackLink } from "~/components/back-link";
+import { FavoriteButton } from "~/components/favorite-button";
 import { ScholarAvatar } from "~/components/scholar-avatar";
 import { categoryOf } from "~/data/categories";
-import { getReciter, surahAudioUrl } from "~/data/reciters";
+import { getReciter } from "~/data/reciters";
 import { type Surah, surahs } from "~/data/surahs";
 import { useLocalize } from "~/lib/localize";
-import { player, type Track, usePlayer } from "~/lib/player";
+import { player, usePlayer } from "~/lib/player";
+import { surahFromTrack, useSurahTrack } from "~/lib/surah-track";
 import type { Route } from "./+types/route";
 
 export async function loader({ params }: Route.LoaderArgs) {
@@ -58,9 +60,7 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
   const [params, setParams] = useSearchParams();
   const requested = Number(params.get("surah"));
   // A surah of this reciter that's already playing (it may have moved on by itself) wins over the URL.
-  const loaded = usePlayer().track?.id;
-  const prefix = `quran:${reciter.id}:`;
-  const playingHere = loaded?.startsWith(prefix) ? Number(loaded.slice(prefix.length)) : 0;
+  const playingHere = surahFromTrack(reciter.id, usePlayer().track?.id);
   const current =
     playingHere || (Number.isInteger(requested) && requested >= 1 && requested <= surahs.length ? requested : 1);
   const [query, setQuery] = useState("");
@@ -68,22 +68,9 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
   const totalMinutes = Math.round(reciter.seconds.reduce((a, b) => a + b, 0) / 60);
   const shown = surahs.filter((s) => matches(s, query, l(s.meaning)));
 
-  // Built from plain values so it still works (and plays on) after the listener leaves this page.
-  function track(n: number): Track {
-    const surah = surahs[n - 1];
-    return {
-      id: `${prefix}${n}`,
-      src: surahAudioUrl(reciter, n),
-      book: { id: `surah-${n}`, title: { ar: `سورة ${surah.name}`, en: surah.translit }, author: reciter.name },
-      hue: reciter.hue,
-      artist: l(reciter.name),
-      label: t("quran.surah", { name: isAr ? surah.name : surah.translit }),
-      href: `${href("/reciters/:reciterId", { reciterId: reciter.id })}?surah=${n}`,
-      duration: reciter.seconds[n - 1],
-      // Recite on through the mushaf.
-      onEnded: () => n < surahs.length && player.play(track(n + 1)),
-    };
-  }
+  // Recites on through the mushaf when a surah ends.
+  const surahTrack = useSurahTrack();
+  const track = (n: number) => surahTrack(reciter, n);
 
   function play(n: number) {
     player.play(track(n));
@@ -149,6 +136,15 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
             <a href={reciter.source.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
               {l(reciter.source.name)}
             </a>
+            {reciter.photo && (
+              <>
+                {" · "}
+                {t("quran.photo")}{" "}
+                <a href={reciter.photo.url} target="_blank" rel="noreferrer" className="hover:underline">
+                  <bdi>{reciter.photo.author}</bdi>, {reciter.photo.license}
+                </a>
+              </>
+            )}
           </p>
         </div>
 
@@ -178,15 +174,15 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
               {shown.map((s) => {
                 const active = s.n === current;
                 return (
-                  <li key={s.n}>
+                  <li
+                    key={s.n}
+                    className={cn("flex items-center transition-colors", active ? "tint-bg" : "hover:bg-accent/50")}
+                  >
                     <button
                       type="button"
                       onClick={() => play(s.n)}
                       aria-current={active ? "true" : undefined}
-                      className={cn(
-                        "flex w-full items-center gap-3 px-3 py-3 text-start sm:px-4 transition-colors outline-none focus-visible:bg-accent/60",
-                        active ? "tint-bg" : "hover:bg-accent/50",
-                      )}
+                      className="flex min-w-0 flex-1 items-center gap-3 py-3 ps-3 text-start outline-none focus-visible:bg-accent/60 sm:ps-4"
                     >
                       <span
                         className={cn(
@@ -218,6 +214,12 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
                         {clock(reciter.seconds[s.n - 1])}
                       </span>
                     </button>
+                    <FavoriteButton
+                      reciterId={reciter.id}
+                      surah={s.n}
+                      name={isAr ? s.name : s.translit}
+                      className="mx-1 size-10 sm:me-2"
+                    />
                   </li>
                 );
               })}

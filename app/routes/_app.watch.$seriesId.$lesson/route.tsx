@@ -5,10 +5,12 @@ import { data, href, Link } from "react-router";
 import { AudioLesson } from "~/components/audio-lesson";
 import { BackLink } from "~/components/back-link";
 import { BookCover } from "~/components/book-cover";
+import { BookReader } from "~/components/book-reader";
 import { ScholarAvatar } from "~/components/scholar-avatar";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { lessonAudioUrl } from "~/data/audio.server";
+import { getBookText } from "~/data/book-texts";
 import { getBook } from "~/data/curriculum";
 import { getScholar, getSeries, seriesForBook } from "~/data/explanations";
 import { useLocalize } from "~/lib/localize";
@@ -65,6 +67,7 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
   const prev = s.lessons.find((x) => x.n === n - 1);
   const next = s.lessons.find((x) => x.n === n + 1);
   const done = watchedCount(p, s.id, s.lessons.length);
+  const text = getBookText(book.id);
 
   useEffect(() => {
     progress.open(s.id, book.id, n);
@@ -171,11 +174,19 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
           )}
         </div>
 
-        <Tabs defaultValue="notes">
+        {/* With the book's text, reading along is the first tab. */}
+        {/* Radix defaults to ltr; follow the page so Arabic tabs and their content read right-to-left. */}
+        <Tabs defaultValue={text ? "text" : "notes"} dir={isAr ? "rtl" : "ltr"}>
           <TabsList>
+            {text && <TabsTrigger value="text">{t("reader.tab")}</TabsTrigger>}
             <TabsTrigger value="notes">{t("watch.notes")}</TabsTrigger>
             <TabsTrigger value="about">{t("watch.about")}</TabsTrigger>
           </TabsList>
+          {text && (
+            <TabsContent value="text" className="mt-3">
+              <BookReader bookId={book.id} text={text} />
+            </TabsContent>
+          )}
           <TabsContent value="notes" className="mt-3">
             <textarea
               value={p.notes[noteKey] ?? ""}

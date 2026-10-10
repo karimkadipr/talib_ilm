@@ -42,17 +42,24 @@ export function MiniPlayer() {
             aria-label={`${t("player.open")}: ${title}`}
             className="flex min-w-0 flex-1 items-center gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
-            {/* Equaliser that moves while the recording plays. */}
+            {/* Artwork (if any) with an equaliser that moves while the recording plays. */}
             <span
               aria-hidden
-              className="tint-bg flex size-10 shrink-0 items-end justify-center gap-0.75 rounded-lg px-2.5 py-2.5"
+              className="tint-bg relative flex size-10 shrink-0 items-end justify-center gap-0.75 overflow-hidden rounded-lg px-2.5 py-2.5"
             >
+              {track.artwork && (
+                <>
+                  <img src={track.artwork} alt="" className="absolute inset-0 size-full object-cover" />
+                  <span className="absolute inset-x-0 bottom-0 h-3/5 bg-linear-to-t from-black/70 to-transparent" />
+                </>
+              )}
               {[0, 0.35, 0.15, 0.5].map((delay, i) => (
                 <span
                   key={i}
                   style={{ animationDelay: `${delay}s` }}
                   className={cn(
-                    "tint-solid h-full w-0.75 origin-bottom rounded-full transition-transform",
+                    "tint-solid relative w-0.75 origin-bottom rounded-full transition-transform",
+                    track.artwork ? "h-2/5" : "h-full",
                     s.playing && !s.buffering ? "motion-safe:animate-eq" : "scale-y-30",
                   )}
                 />
