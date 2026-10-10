@@ -1,6 +1,7 @@
 import { cn } from "cn";
-import { BookOpen, CalendarDays, Flame, HandHeart, Play, Sun } from "lucide-react";
+import { AudioLines, BookOpen, CalendarDays, Flame, Play, Sun } from "lucide-react";
 import { href, Link, NavLink, useNavigation } from "react-router";
+import { DuaHandsIcon } from "~/components/dua-hands-icon";
 import { LanguageSwitcher } from "~/components/language-switcher";
 import { LogoMark } from "~/components/logo";
 import { ProgrammeToggle } from "~/components/programme-toggle";
@@ -19,7 +20,7 @@ function navClass({ isActive }: { isActive: boolean }) {
 }
 
 function CategoryIcon({ id, className }: { id: string; className?: string }) {
-  const Icon = id === "adhkar" ? HandHeart : BookOpen;
+  const Icon = id === "adhkar" ? DuaHandsIcon : id === "quran" ? AudioLines : BookOpen;
   return <Icon className={className} />;
 }
 

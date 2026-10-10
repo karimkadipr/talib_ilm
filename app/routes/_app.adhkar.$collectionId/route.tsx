@@ -1,11 +1,30 @@
 import { cn } from "cn";
-import { Check, Moon, RotateCcw, Sun } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowDownToLine,
+  ArrowUp,
+  ArrowUpToLine,
+  Check,
+  EllipsisVertical,
+  ListRestart,
+  Moon,
+  RotateCcw,
+  Sun,
+} from "lucide-react";
 import { useRef } from "react";
 import { data } from "react-router";
 import { BackLink } from "~/components/back-link";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import { categoryOf } from "~/data/categories";
 import { getAdhkarCollection } from "~/data/adhkar";
 import { getAdhkar } from "~/data/adhkar.server";
+import { adhkarOrder, useAdhkarOrder } from "~/lib/adhkar-order";
 import { adhkarProgress, useAdhkarDone } from "~/lib/adhkar-progress";
 import { useLocalize } from "~/lib/localize";
 import type { Route } from "./+types/route";
@@ -29,6 +48,9 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
   const { adhkar } = loaderData;
   const category = categoryOf("adhkar", collection.id);
   const done = useAdhkarDone(collection.id, adhkar.length);
+  // Original indices in the reader's order; counts and card refs stay keyed by original index.
+  const order = useAdhkarOrder(collection.id, adhkar.length);
+  const reordered = order.some((orig, pos) => orig !== pos);
   const { l, t, num, isAr } = useLocalize();
   // UI-language text on this right-to-left page keeps its own direction so it isn't scrambled.
   const uiDir = isAr ? "rtl" : "ltr";
@@ -41,8 +63,8 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
     if (done[i] >= d.count) return;
     const now = adhkarProgress.tap(collection.id, i, d.count, adhkar.length);
     if (now >= d.count) {
-      // Bring the next unfinished dhikr into view.
-      const next = adhkar.findIndex((x, k) => k > i && done[k] < x.count);
+      // Bring the next unfinished dhikr (in the reader's order) into view.
+      const next = order.slice(order.indexOf(i) + 1).find((k) => done[k] < adhkar[k].count) ?? -1;
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (next >= 0)
         cards.current[next]?.scrollIntoView({
@@ -50,6 +72,16 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
           block: "center",
         });
     }
+  }
+
+  function move(from: number, to: number) {
+    const i = order[from];
+    adhkarOrder.move(collection.id, adhkar.length, from, to);
+    // Follow the moved dhikr so it doesn't vanish off-screen (e.g. after "Move to bottom").
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    requestAnimationFrame(() =>
+      cards.current[i]?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" }),
+    );
   }
 
   return (
@@ -105,7 +137,8 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
       </header>
 
       <ol className="space-y-3">
-        {adhkar.map((d, i) => {
+        {order.map((i, pos) => {
+          const d = adhkar[i];
           const count = done[i];
           const complete = count >= d.count;
           return (
@@ -133,7 +166,7 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
               >
                 <span className="mb-3 block text-xs font-medium text-muted-foreground tabular-nums">
                   <span dir="ltr">
-                    {num(i + 1)} / {num(adhkar.length)}
+                    {num(pos + 1)} / {num(adhkar.length)}
                   </span>
                 </span>
                 {d.intro && (
@@ -170,17 +203,58 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
                     )}
                   </span>
                 )}
-                {count > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => adhkarProgress.reset(collection.id, i)}
-                    aria-label={t("adhkar.resetOne")}
-                    title={t("adhkar.resetOne")}
-                    className="-me-2 rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  >
-                    <RotateCcw className="size-4" />
-                  </button>
-                )}
+                <div className="-me-2 flex items-center">
+                  {count > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => adhkarProgress.reset(collection.id, i)}
+                      aria-label={t("adhkar.resetOne")}
+                      title={t("adhkar.resetOne")}
+                      className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    >
+                      <RotateCcw className="size-4" />
+                    </button>
+                  )}
+                  <DropdownMenu dir={uiDir}>
+                    <DropdownMenuTrigger
+                      aria-label={t("adhkar.reorder")}
+                      title={t("adhkar.reorder")}
+                      className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    >
+                      <EllipsisVertical className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem disabled={pos === 0} onSelect={() => move(pos, 0)}>
+                        <ArrowUpToLine />
+                        {t("adhkar.moveFirst")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled={pos === 0} onSelect={() => move(pos, pos - 1)}>
+                        <ArrowUp />
+                        {t("adhkar.moveUp")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled={pos === order.length - 1} onSelect={() => move(pos, pos + 1)}>
+                        <ArrowDown />
+                        {t("adhkar.moveDown")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={pos === order.length - 1}
+                        onSelect={() => move(pos, order.length - 1)}
+                      >
+                        <ArrowDownToLine />
+                        {t("adhkar.moveLast")}
+                      </DropdownMenuItem>
+                      {reordered && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onSelect={() => adhkarOrder.reset(collection.id)}>
+                            <ListRestart />
+                            {t("adhkar.resetOrder")}
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </li>
           );

@@ -1,11 +1,15 @@
 // Top-level sections of the site, shown in the sidebar. Each lists its pages: the sciences of the
-// curriculum ("Seeking Knowledge") or collections of adhkār. More categories can be added here.
+// curriculum ("Seeking Knowledge"), collections of adhkār, or Qur'an reciters. More categories can be added here.
 
 import { href } from "react-router";
 import { getAdhkarCollection } from "./adhkar";
 import { getSubject, type Localized, subjects } from "./curriculum";
+import { getReciter, reciters } from "./reciters";
 
-export type CategoryItem = { kind: "subject"; id: string } | { kind: "adhkar"; id: string };
+export type CategoryItem =
+  | { kind: "subject"; id: string }
+  | { kind: "adhkar"; id: string }
+  | { kind: "reciter"; id: string };
 
 export type Category = {
   id: string;
@@ -40,6 +44,16 @@ export const categories: Category[] = [
       { kind: "adhkar", id: "masaa" },
     ],
   },
+  {
+    id: "quran",
+    name: L("القرآن الكريم", "Qur'ān", "Coran"),
+    description: L(
+      "تلاوات المصحف كاملاً بأصوات القرّاء، سورةً سورة.",
+      "Complete recitations of the Qur'ān by its reciters, surah by surah.",
+      "Des récitations complètes du Coran par ses récitateurs, sourate par sourate.",
+    ),
+    items: reciters.map((r) => ({ kind: "reciter", id: r.id })),
+  },
 ];
 
 export const DEFAULT_CATEGORY = categories[0].id;
@@ -48,7 +62,7 @@ export function getCategory(id: string) {
   return categories.find((c) => c.id === id);
 }
 
-/** The category a science or adhkār collection belongs to. */
+/** The category a science, adhkār collection or reciter belongs to. */
 export function categoryOf(kind: CategoryItem["kind"], id: string) {
   return categories.find((c) => c.items.some((i) => i.kind === kind && i.id === id));
 }
@@ -58,6 +72,10 @@ export function itemInfo(item: CategoryItem): { name: Localized; to: string; hue
   if (item.kind === "subject") {
     const s = getSubject(item.id)!;
     return { name: s.name, to: href("/subjects/:subjectId", { subjectId: s.id }), hue: s.hue };
+  }
+  if (item.kind === "reciter") {
+    const r = getReciter(item.id)!;
+    return { name: r.name, to: href("/reciters/:reciterId", { reciterId: r.id }), hue: r.hue };
   }
   const c = getAdhkarCollection(item.id)!;
   return { name: c.name, to: href("/adhkar/:collectionId", { collectionId: c.id }), hue: c.hue };

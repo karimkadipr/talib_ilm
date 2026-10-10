@@ -28,7 +28,7 @@ function writePosition(id: string, seconds: number) {
 }
 
 /** h:mm:ss (or m:ss) in the page language's digits. */
-function useClock() {
+export function useClock() {
   const { i18n } = useTranslation();
   const one = new Intl.NumberFormat(i18n.language, { useGrouping: false });
   const two = new Intl.NumberFormat(i18n.language, { minimumIntegerDigits: 2, useGrouping: false });
@@ -55,6 +55,7 @@ export function AudioLesson({
   hue,
   artist,
   label,
+  autoPlay = false,
   onEnded,
 }: {
   /** Stable lesson key, used to remember the playback position. */
@@ -66,6 +67,8 @@ export function AudioLesson({
   artist: string;
   /** e.g. "Lesson 3", shown on the lock screen / media controls. */
   label: string;
+  /** Start playing once loaded, e.g. when the listener picked this recording from a list. */
+  autoPlay?: boolean;
   onEnded: () => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -96,6 +99,7 @@ export function AudioLesson({
       setTime(at);
       setResumedAt(at);
     }
+    if (autoPlay) void el.play().catch(() => {});
   }
 
   function updateBuffered(el: HTMLAudioElement) {

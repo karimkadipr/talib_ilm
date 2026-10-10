@@ -1,12 +1,14 @@
-import { CalendarDays, Headphones, Layers, Moon, Sun } from "lucide-react";
+import { CalendarDays, Clock, Headphones, Layers, Moon, Sun } from "lucide-react";
 import { data, href, Link } from "react-router";
 import { ProgrammeToggle } from "~/components/programme-toggle";
 import { ProgressRing } from "~/components/progress-ring";
+import { ScholarAvatar } from "~/components/scholar-avatar";
 import { getAdhkarCollection } from "~/data/adhkar";
 import { getAdhkar } from "~/data/adhkar.server";
 import { getCategory, itemInfo } from "~/data/categories";
 import { countBooks, getSubject, type Subject } from "~/data/curriculum";
 import { seriesForBook } from "~/data/explanations";
+import { getReciter } from "~/data/reciters";
 import { useLocalize } from "~/lib/localize";
 import { useAdhkarDone } from "~/lib/adhkar-progress";
 import { usePreferences } from "~/lib/preferences";
@@ -102,6 +104,40 @@ function AdhkarCard({ id, counts }: { id: string; counts: number[] }) {
   );
 }
 
+function ReciterCard({ id }: { id: string }) {
+  const reciter = getReciter(id)!;
+  const { l, t, num, duration, isAr } = useLocalize();
+  const minutes = Math.round(reciter.seconds.reduce((a, b) => a + b, 0) / 60);
+  return (
+    <Link
+      to={itemInfo({ kind: "reciter", id }).to}
+      style={{ "--hue": reciter.hue } as React.CSSProperties}
+      className="group flex items-center gap-4 rounded-2xl border bg-card p-4 transition-colors hover:bg-accent/50"
+    >
+      <ScholarAvatar scholar={reciter} className="size-14 text-2xl ring-0" />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">{l(reciter.name)}</p>
+        {!isAr && (
+          <p lang="ar" className="font-arabic text-sm text-muted-foreground">
+            {reciter.name.ar}
+          </p>
+        )}
+        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <Layers className="size-3" />
+            {t("quran.surahs", { count: reciter.seconds.length })}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Clock className="size-3" />
+            {duration(minutes)}
+          </span>
+          <span>{l(reciter.riwayah)}</span>
+        </p>
+      </div>
+    </Link>
+  );
+}
+
 export default function CategoryPage({ loaderData }: Route.ComponentProps) {
   const category = getCategory(loaderData.categoryId)!;
   const { programme } = usePreferences();
@@ -125,12 +161,18 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
 
       <section>
         <h2 className="mb-4 text-lg font-semibold">
-          {category.items.every((i) => i.kind === "subject") ? t("category.sciences") : t("category.pages")}
+          {category.items.every((i) => i.kind === "subject")
+            ? t("category.sciences")
+            : category.items.every((i) => i.kind === "reciter")
+              ? t("category.reciters")
+              : t("category.pages")}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {category.items.map((item) =>
             item.kind === "subject" ? (
               <SubjectCard key={item.id} subject={getSubject(item.id)!} />
+            ) : item.kind === "reciter" ? (
+              <ReciterCard key={item.id} id={item.id} />
             ) : (
               <AdhkarCard key={item.id} id={item.id} counts={loaderData.adhkarCounts[item.id] ?? []} />
             ),
