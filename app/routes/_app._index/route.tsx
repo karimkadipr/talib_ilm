@@ -9,6 +9,8 @@ import { subjectProgress } from "~/lib/schedule";
 import { DEFAULT_CATEGORY } from "~/data/categories";
 import { getInstance } from "~/middleware/i18next";
 import { getPreferences } from "~/services/cookies/preferences.cookie.server";
+import { pageMeta } from "~/lib/meta";
+import { seo } from "~/lib/meta.server";
 import type { Route } from "./+types/route";
 
 export async function loader({ context, request }: Route.LoaderArgs) {
@@ -16,11 +18,11 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   if (!(await getPreferences(request)).programme) {
     throw redirect(href("/categories/:categoryId", { categoryId: DEFAULT_CATEGORY }));
   }
-  return { title: getInstance(context).t("program.title") };
+  return { meta: seo(context, [getInstance(context).t("program.title")]) };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: loaderData?.title }];
+  return pageMeta(loaderData?.meta);
 }
 
 const SOURCE_URL = "https://saaid.org/Minute/mm12.htm";

@@ -12,6 +12,8 @@ import {
 import type { Route } from "./+types/root";
 import "./app.css";
 import { getLanguageOrFallback } from "~/lib/i18n.constants";
+import { pageMeta } from "~/lib/meta";
+import { seo } from "~/lib/meta.server";
 import { getLocale, i18nextMiddleware } from "~/middleware/i18next";
 import { getPreferences } from "~/services/cookies/preferences.cookie.server";
 
@@ -23,10 +25,19 @@ export const handle = { i18n: "common" };
 
 export async function loader({ context, request }: Route.LoaderArgs) {
   const { programme } = await getPreferences(request);
-  return { locale: getLanguageOrFallback(getLocale(context)), programme };
+  // Pages set their own meta; this is the fallback (e.g. for error pages).
+  return { locale: getLanguageOrFallback(getLocale(context)), programme, meta: seo(context, []) };
+}
+
+export function meta({ loaderData }: Route.MetaArgs) {
+  return pageMeta(loaderData?.meta);
 }
 
 export const links: Route.LinksFunction = () => [
+  { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
+  { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+  { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+  { rel: "manifest", href: "/manifest.webmanifest" },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
     rel: "preconnect",

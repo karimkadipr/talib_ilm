@@ -1,17 +1,20 @@
 import { useTranslation } from "react-i18next";
 import type { Localized } from "~/data/curriculum";
 
+/** The string for `lang` from curriculum data (French falls back to English). */
+export function localize(value: Localized, lang: string) {
+  if (lang === "ar") return value.ar;
+  if (lang === "fr") return value.fr ?? value.en;
+  return value.en;
+}
+
 /** Picks the right string from curriculum data for the current language. */
 export function useLocalize() {
   const { i18n, t } = useTranslation();
   const lang = i18n.language;
   const isAr = lang === "ar";
 
-  function l(value: Localized) {
-    if (isAr) return value.ar;
-    if (lang === "fr") return value.fr ?? value.en;
-    return value.en;
-  }
+  const l = (value: Localized) => localize(value, lang);
 
   const numberFormat = new Intl.NumberFormat(lang);
   const num = (n: number) => numberFormat.format(n);

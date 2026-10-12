@@ -12,16 +12,18 @@ import { useLocalize } from "~/lib/localize";
 import { usePreferences } from "~/lib/preferences";
 import { useProgress, type ProgressState } from "~/lib/progress";
 import { entryStatus, groupProgress, subjectProgress } from "~/lib/schedule";
+import { pageMeta } from "~/lib/meta";
+import { localizer, seo } from "~/lib/meta.server";
 import type { Route } from "./+types/route";
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
   const subject = getSubject(params.subjectId);
   if (!subject) throw data(null, { status: 404 });
-  return { subjectId: subject.id, title: subject.name.ar };
+  return { subjectId: subject.id, meta: seo(context, [localizer(context).l(subject.name)]) };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: loaderData?.title }];
+  return pageMeta(loaderData?.meta);
 }
 
 function StatusChip({ status }: { status: "done" | "reading" | "todo" }) {

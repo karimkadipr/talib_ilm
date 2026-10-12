@@ -14,7 +14,7 @@ export type Reciter = {
   seconds: number[];
   /** Where the recordings come from, credited on the reciter's page. */
   source: { name: Localized; url: string };
-  /** Square portrait in public/reciters/, from Wikimedia Commons; credited on the reciter's page. */
+  /** Square portrait in public/reciters/, from Wikimedia Commons (author, licence and file page kept for attribution). */
   photo?: { src: string; author: string; license: string; url: string };
 };
 

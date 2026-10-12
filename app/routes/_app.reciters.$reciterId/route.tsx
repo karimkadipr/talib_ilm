@@ -12,16 +12,18 @@ import { type Surah, surahs } from "~/data/surahs";
 import { useLocalize } from "~/lib/localize";
 import { player, usePlayer } from "~/lib/player";
 import { surahFromTrack, useSurahTrack } from "~/lib/surah-track";
+import { pageMeta } from "~/lib/meta";
+import { localizer, seo } from "~/lib/meta.server";
 import type { Route } from "./+types/route";
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
   const reciter = getReciter(params.reciterId);
   if (!reciter) throw data(null, { status: 404 });
-  return { reciterId: reciter.id, title: reciter.name.ar };
+  return { reciterId: reciter.id, meta: seo(context, [localizer(context).l(reciter.name)]) };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: loaderData?.title }];
+  return pageMeta(loaderData?.meta);
 }
 
 /** Arabic without diacritics and with one form of alif, tāʾ marbūṭah and yāʾ, so "الاعلى" finds "الأعلى". */
@@ -117,15 +119,6 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
             <a href={reciter.source.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
               {l(reciter.source.name)}
             </a>
-            {reciter.photo && (
-              <>
-                {" · "}
-                {t("quran.photo")}{" "}
-                <a href={reciter.photo.url} target="_blank" rel="noreferrer" className="hover:underline">
-                  <bdi>{reciter.photo.author}</bdi>, {reciter.photo.license}
-                </a>
-              </>
-            )}
           </p>
         </div>
 

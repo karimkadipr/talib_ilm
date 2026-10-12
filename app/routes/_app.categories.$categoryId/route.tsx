@@ -22,20 +22,23 @@ import { type SurahOrder, surahTrackId, useSurahTrack } from "~/lib/surah-track"
 import { usePreferences } from "~/lib/preferences";
 import { useProgress } from "~/lib/progress";
 import { subjectProgress } from "~/lib/schedule";
+import { pageMeta } from "~/lib/meta";
+import { localizer, seo } from "~/lib/meta.server";
 import type { Route } from "./+types/route";
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
   const category = getCategory(params.categoryId);
   if (!category) throw data(null, { status: 404 });
   // Each adhkār collection's repetition counts, for its "done today" figure.
   const adhkarCounts = Object.fromEntries(
     category.items.filter((i) => i.kind === "adhkar").map((i) => [i.id, getAdhkar(i.id as "sabah" | "masaa").map((d) => d.count)]),
   );
-  return { categoryId: category.id, title: category.name.ar, adhkarCounts };
+  const { l } = localizer(context);
+  return { categoryId: category.id, meta: seo(context, [l(category.name)], l(category.description)), adhkarCounts };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: loaderData?.title }];
+  return pageMeta(loaderData?.meta);
 }
 
 /** Books of a subject that have at least one recorded explanation in the app. */

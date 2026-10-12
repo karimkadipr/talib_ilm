@@ -18,15 +18,17 @@ import {
   subjectProgress,
 } from "~/lib/schedule";
 import { getInstance } from "~/middleware/i18next";
+import { pageMeta } from "~/lib/meta";
+import { seo } from "~/lib/meta.server";
 import type { Route } from "./+types/route";
 
 export async function loader({ context }: Route.LoaderArgs) {
   // Server time seeds "today" so the first render matches on both sides.
-  return { now: Date.now(), title: getInstance(context).t("nav.today") };
+  return { now: Date.now(), meta: seo(context, [getInstance(context).t("nav.today")]) };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: loaderData?.title }];
+  return pageMeta(loaderData?.meta);
 }
 
 function TodayHero({ date }: { date: Date }) {

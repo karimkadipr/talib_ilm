@@ -13,16 +13,18 @@ import { getBook } from "~/data/curriculum";
 import { getScholar, seriesForBook, totalMinutes, type Series } from "~/data/explanations";
 import { useLocalize } from "~/lib/localize";
 import { lessonKey, progress, useProgress, watchedCount } from "~/lib/progress";
+import { pageMeta } from "~/lib/meta";
+import { localizer, seo } from "~/lib/meta.server";
 import type { Route } from "./+types/route";
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
   const loc = getBook(params.bookId);
   if (!loc) throw data(null, { status: 404 });
-  return { bookId: loc.book.id, title: loc.book.title.ar };
+  return { bookId: loc.book.id, meta: seo(context, [localizer(context).l(loc.book.title)]) };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: loaderData?.title }];
+  return pageMeta(loaderData?.meta);
 }
 
 function ScholarCard({ s, selected }: { s: Series; selected: boolean }) {

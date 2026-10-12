@@ -15,22 +15,26 @@ import { getBook } from "~/data/curriculum";
 import { getScholar, getSeries, seriesForBook } from "~/data/explanations";
 import { useLocalize } from "~/lib/localize";
 import { lessonKey, progress, useProgress, watchedCount } from "~/lib/progress";
+import { pageMeta } from "~/lib/meta";
+import { localizer, seo } from "~/lib/meta.server";
 import type { Route } from "./+types/route";
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
   const s = getSeries(params.seriesId);
   const n = Number(params.lesson);
   if (!s || !s.lessons.some((l) => l.n === n)) throw data(null, { status: 404 });
+  const { l, t, num } = localizer(context);
   return {
     seriesId: s.id,
     lesson: n,
-    title: getBook(s.bookId)!.book.title.ar,
+    // "Lesson 3 · <book> · <app>": the lesson number stays visible in a narrow tab.
+    meta: seo(context, [t("lesson.n", { n: num(n) }), l(getBook(s.bookId)!.book.title)]),
     audioUrl: lessonAudioUrl(s.id, n),
   };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: loaderData?.title }];
+  return pageMeta(loaderData?.meta);
 }
 
 function Player({ videoId, children }: { videoId?: string; children: React.ReactNode }) {

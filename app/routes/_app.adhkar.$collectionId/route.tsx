@@ -27,20 +27,22 @@ import { getAdhkar } from "~/data/adhkar.server";
 import { adhkarOrder, useAdhkarOrder } from "~/lib/adhkar-order";
 import { adhkarProgress, useAdhkarDone } from "~/lib/adhkar-progress";
 import { useLocalize } from "~/lib/localize";
+import { pageMeta } from "~/lib/meta";
+import { localizer, seo } from "~/lib/meta.server";
 import type { Route } from "./+types/route";
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
   const collection = getAdhkarCollection(params.collectionId);
   if (!collection) throw data(null, { status: 404 });
   return {
     collectionId: collection.id,
-    title: collection.name.ar,
+    meta: seo(context, [localizer(context).l(collection.name)]),
     adhkar: getAdhkar(collection.id),
   };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: loaderData?.title }];
+  return pageMeta(loaderData?.meta);
 }
 
 export default function AdhkarPage({ loaderData }: Route.ComponentProps) {

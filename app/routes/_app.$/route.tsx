@@ -2,11 +2,19 @@ import { useTranslation } from "react-i18next";
 import { data, href, Link } from "react-router";
 import { LogoMark } from "~/components/logo";
 import { Button } from "~/components/ui/button";
+import { pageMeta } from "~/lib/meta";
+import { seo } from "~/lib/meta.server";
+import { getInstance } from "~/middleware/i18next";
+import type { Route } from "./+types/route";
 
 // Catch-all 404. Unmatched URLs would otherwise skip the root loader and render
 // the error boundary without a ready i18next instance.
-export async function loader() {
-  return data(null, { status: 404 });
+export async function loader({ context }: Route.LoaderArgs) {
+  return data({ meta: seo(context, [getInstance(context).t("notFound.title")]) }, { status: 404 });
+}
+
+export function meta({ loaderData }: Route.MetaArgs) {
+  return pageMeta(loaderData?.meta);
 }
 
 export default function NotFound() {
