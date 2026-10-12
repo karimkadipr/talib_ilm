@@ -49,6 +49,17 @@ const bookTexts: Record<string, BookText> = {
     edition: { ar: "متن الأصول الستة", en: "The matn of al-Uṣūl al-Sittah", fr: "Le matn d'al-Uṣūl al-Sittah" },
     source: islamHouse(2830535),
   },
+  "kitab-tawhid": {
+    src: "/books/kitab-al-tawhid.pdf",
+    url: archive("matn-kitab-al-tawhid-sunnah-college", "kitab-al-tawhid.pdf"),
+    pages: 122,
+    edition: {
+      ar: "سلسلة «متون معهد السنة» (رقم ١٢)، راجعه د. هيثم سرحان",
+      en: "As-Sunnah College Mutūn series (no. 12), reviewed by Dr. Haytham Sarḥān",
+      fr: "Série des Mutūn d'As-Sunnah College (n° 12), révisée par le Dr Haytham Sarḥān",
+    },
+    source: islamHouse(1898),
+  },
   // The curriculum's «أركان الإيمان» for Ibn al-ʿUthaymīn: his treatise built on the six pillars.
   "arkan-iman-uthaymin": {
     src: "/books/nubdhah-fi-al-aqidah.pdf",

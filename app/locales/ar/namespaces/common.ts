@@ -213,6 +213,7 @@ export default {
   "watch.play": "تشغيل",
   "watch.playing": "قيد التشغيل",
   "watch.prev": "السابق",
+  "watch.reconnecting": "انقطع الاتصال — جارٍ إعادة المحاولة ({{n}} من {{max}})…",
   "watch.resumedAt": "تابعتَ من حيث توقفت، عند {{time}}",
   "watch.retry": "إعادة المحاولة",
   "watch.seek": "الموضع في الدرس",

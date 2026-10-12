@@ -189,6 +189,7 @@ export default {
   "watch.play": "Lecture",
   "watch.playing": "En cours de lecture",
   "watch.prev": "Précédente",
+  "watch.reconnecting": "Connexion perdue — reconnexion ({{n}} sur {{max}})…",
   "watch.resumedAt": "Reprise là où vous vous étiez arrêté, à {{time}}",
   "watch.retry": "Réessayer",
   "watch.seek": "Position dans la leçon",

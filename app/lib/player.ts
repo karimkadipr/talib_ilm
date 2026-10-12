@@ -50,11 +50,17 @@ export type PlayerState = {
   resumedAt: number | null;
   /** Recording whose full player is on screen, so the mini player can step aside. */
   onScreen: string | null;
+  /** Automatic reload attempt under way after a failure (1…MAX_RETRIES), or 0. */
+  reconnecting: number;
 };
 
 export const SPEEDS = [1, 1.25, 1.5, 2];
 export const BACK = 15;
 export const FORWARD = 30;
+/** Automatic reloads after a failure before the listener is shown the error (and a Retry button). */
+export const MAX_RETRIES = 10;
+/** Waiting this long for data while playing counts as a failure (browsers often stall rather than fail). */
+const STALL_MS = 20_000;
 
 const POSITION_KEY = (id: string) => `islamic-studies:position:${id}`;
 const SPEED_KEY = "islamic-studies:speed";
@@ -91,6 +97,7 @@ const EMPTY: PlayerState = {
   muted: false,
   resumedAt: null,
   onScreen: null,
+  reconnecting: 0,
 };
 
 let state: PlayerState = EMPTY;
@@ -98,6 +105,12 @@ let audio: HTMLAudioElement | null = null;
 let lastSaved = 0;
 let restored = false;
 let resumedTimer: ReturnType<typeof setTimeout> | undefined;
+// Automatic reloads: how many in a row, the pending one, the stall watchdog, and whether to play
+// once reloaded (not if the listener had paused).
+let failures = 0;
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
+let stallTimer: ReturnType<typeof setTimeout> | undefined;
+let autoplay = true;
 const listeners = new Set<() => void>();
 
 function set(patch: Partial<PlayerState>) {
@@ -180,6 +193,37 @@ function showResumed(at: number | null) {
   if (at !== null) resumedTimer = setTimeout(() => set({ resumedAt: null }), 8000);
 }
 
+function resetRetries() {
+  failures = 0;
+  clearTimeout(retryTimer);
+  clearTimeout(stallTimer);
+}
+
+/**
+ * Something went wrong loading or playing: reload quietly from the same spot, waiting a little longer
+ * each time, and only after MAX_RETRIES failures in a row show the error (with its Retry button).
+ */
+function fail(el: HTMLAudioElement) {
+  const track = state.track;
+  if (!track || !el.getAttribute("src")) return;
+  clearTimeout(stallTimer);
+  clearTimeout(retryTimer);
+  if (failures >= MAX_RETRIES) {
+    set({ status: "error", playing: false, buffering: false, reconnecting: 0 });
+    return;
+  }
+  failures++;
+  // Pick up exactly where it stopped; play on unless the listener had paused.
+  if (state.time > 0) writePosition(track.id, state.time);
+  autoplay = state.status === "loading" || state.playing;
+  set({ status: "loading", buffering: true, reconnecting: failures });
+  retryTimer = setTimeout(() => {
+    if (state.track?.id !== track.id) return;
+    restored = false;
+    el.load();
+  }, Math.min(failures, 5) * 1000);
+}
+
 /** The audio element, created on first use (client only) and kept for the life of the tab. */
 function element() {
   if (audio) return audio;
@@ -193,13 +237,16 @@ function element() {
     el.playbackRate = rate();
     if (restored || !state.track) return;
     restored = true;
+    // After an automatic reload: no "picked up where you left off" note.
+    const quiet = state.reconnecting > 0;
+    set({ reconnecting: 0 });
     const at = readPosition(state.track.id);
     if (at && at < el.duration - 5) {
       el.currentTime = at;
       set({ time: at });
-      showResumed(at);
+      if (!quiet) showResumed(at);
     }
-    void el.play().catch(() => {});
+    if (autoplay) void el.play().catch(() => {});
   });
   el.addEventListener("durationchange", () => Number.isFinite(el.duration) && set({ duration: el.duration }));
   el.addEventListener("timeupdate", () => {
@@ -221,17 +268,30 @@ function element() {
     set({ playing: false });
     if (state.track) writePosition(state.track.id, el.currentTime);
   });
-  el.addEventListener("waiting", () => set({ buffering: true }));
+  el.addEventListener("waiting", () => {
+    set({ buffering: true });
+    // Stuck waiting for data while meant to be playing: treat it as a failure.
+    clearTimeout(stallTimer);
+    stallTimer = setTimeout(() => !el.paused && state.buffering && fail(el), STALL_MS);
+  });
   el.addEventListener("seeking", () => set({ buffering: true }));
-  el.addEventListener("playing", () => set({ buffering: false }));
-  el.addEventListener("canplay", () => set({ buffering: false }));
+  el.addEventListener("playing", () => {
+    set({ buffering: false });
+    // Playing again: the next failure starts a fresh round of retries.
+    resetRetries();
+  });
+  el.addEventListener("canplay", () => {
+    set({ buffering: false });
+    clearTimeout(stallTimer);
+  });
   el.addEventListener("seeked", () => {
     set({ buffering: false });
     updateBuffered(el);
   });
   el.addEventListener("error", () => {
-    if (!el.getAttribute("src")) return;
-    set({ status: "error", playing: false, buffering: false });
+    // ABORTED: the source was changed or removed on purpose (a new recording, or Stop).
+    if (el.error?.code === MediaError.MEDIA_ERR_ABORTED) return;
+    fail(el);
   });
   el.addEventListener("ended", () => {
     set({ playing: false });
@@ -276,8 +336,10 @@ export const player = {
     el.pause();
     restored = false;
     lastSaved = 0;
+    resetRetries();
+    autoplay = true;
     showResumed(null);
-    set({ track, status: "loading", playing: false, buffering: false, time: 0, buffered: 0, duration: track.duration ?? 0 });
+    set({ track, status: "loading", playing: false, buffering: false, time: 0, buffered: 0, duration: track.duration ?? 0, reconnecting: 0 });
     el.src = track.src;
     el.load();
     if ("mediaSession" in navigator && typeof MediaMetadata !== "undefined") {
@@ -331,10 +393,13 @@ export const player = {
     }
     saveVolume();
   },
+  /** The listener's Retry (after the automatic attempts gave up): a fresh round of attempts. */
   retry() {
     if (!audio) return;
+    resetRetries();
+    autoplay = true;
     restored = false;
-    set({ status: "loading" });
+    set({ status: "loading", reconnecting: 0 });
     audio.load();
   },
   /** Dismisses the "picked up where you left off" note, e.g. after "Start over". */
@@ -343,6 +408,7 @@ export const player = {
   },
   /** Stops and closes the player (the mini player's ✕); the position is kept for next time. */
   stop() {
+    resetRetries();
     if (audio) {
       if (state.track) writePosition(state.track.id, audio.currentTime);
       audio.pause();

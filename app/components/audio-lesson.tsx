@@ -19,6 +19,7 @@ import {
   BACK,
   canSetVolume,
   FORWARD,
+  MAX_RETRIES,
   player,
   readPosition,
   SPEEDS,
@@ -141,8 +142,10 @@ export function AudioLesson({
   const caption =
     status === "error"
       ? null
-      : loading
-        ? t("watch.loading")
+      : active && s.reconnecting
+        ? t("watch.reconnecting", { n: numberFormat.format(s.reconnecting), max: numberFormat.format(MAX_RETRIES) })
+        : loading
+          ? t("watch.loading")
         : buffering
           ? t("watch.buffering")
           : resumedAt !== null

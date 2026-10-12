@@ -151,7 +151,7 @@ export function BookText({
               align="start"
               // Focus stays in the text (where the jump landed), not back on the button.
               onCloseAutoFocus={(e) => e.preventDefault()}
-              className="max-h-80 min-w-56 rounded-xl p-1.5"
+              className="max-h-80 w-80 max-w-[calc(100vw-2rem)] rounded-xl p-1.5"
             >
               {content.sections.map((s) => (
                 <DropdownMenuItem
@@ -163,7 +163,7 @@ export function BookText({
                     s.id === current.section && "text-primary",
                   )}
                 >
-                  <span lang="ar" dir="rtl" className={cn("font-arabic", s.level === 1 ? "text-base font-medium" : "text-sm")}>
+                  <span lang="ar" dir="rtl" className={cn("font-arabic line-clamp-2", s.level === 1 ? "text-base font-medium" : "text-sm")}>
                     {s.text}
                   </span>
                   <span className="text-xs text-muted-foreground tabular-nums">{num(s.page)}</span>

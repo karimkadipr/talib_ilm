@@ -181,6 +181,7 @@ export default {
   "watch.play": "Play",
   "watch.playing": "Now playing",
   "watch.prev": "Previous",
+  "watch.reconnecting": "Connection lost — reconnecting ({{n}} of {{max}})…",
   "watch.resumedAt": "Picked up where you left off, at {{time}}",
   "watch.retry": "Try again",
   "watch.seek": "Position in the lesson",
