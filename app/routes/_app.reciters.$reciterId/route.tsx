@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { AudioLines, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { AudioLines, Search } from "lucide-react";
 import { useRef, useState } from "react";
 import { data, useSearchParams } from "react-router";
 import { AudioLesson, useClock } from "~/components/audio-lesson";
@@ -110,28 +110,9 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start">
         <div ref={playerBox} className="scroll-mt-20 space-y-3 lg:sticky lg:top-22">
           <AudioLesson key={current} track={track(current)} />
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={current === 1}
-              onClick={() => play(current - 1)}
-              className="inline-flex items-center gap-1 rounded-full border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            >
-              <ChevronLeft className="size-4 rtl:rotate-180" />
-              {t("quran.prev")}
-            </button>
-            <p className="min-w-0 flex-1 truncate text-center text-xs text-muted-foreground max-sm:invisible">{t("quran.playsOn")}</p>
-            <button
-              type="button"
-              disabled={current === surahs.length}
-              onClick={() => play(current + 1)}
-              className="inline-flex items-center gap-1 rounded-full border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            >
-              {t("quran.next")}
-              <ChevronRight className="size-4 rtl:rotate-180" />
-            </button>
-          </div>
           <p className="text-center text-xs text-muted-foreground">
+            {t("quran.playsOn")}
+            <br />
             {t("watch.source")}{" "}
             <a href={reciter.source.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
               {l(reciter.source.name)}
@@ -203,15 +184,18 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
                             </span>
                           )}
                         </span>
-                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                          {!isAr && <>{l(s.meaning)} · </>}
-                          {t("quran.ayahs", { count: s.ayahs })}
-                          {/* Too long for a phone row alongside the meaning; shown from sm up. */}
-                          <span className="max-sm:hidden"> · {t(`quran.${s.revelation}`)}</span>
+                        {/* Length under the Arabic name, so names line up whatever its width. */}
+                        <span className="mt-0.5 flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+                          <span className="truncate">
+                            {!isAr && <>{l(s.meaning)} · </>}
+                            {t("quran.ayahs", { count: s.ayahs })}
+                            {/* Too long for a phone row alongside the meaning; shown from sm up. */}
+                            <span className="max-sm:hidden"> · {t(`quran.${s.revelation}`)}</span>
+                          </span>
+                          <span dir="ltr" className="shrink-0 tabular-nums">
+                            {clock(reciter.seconds[s.n - 1])}
+                          </span>
                         </span>
-                      </span>
-                      <span dir="ltr" className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                        {clock(reciter.seconds[s.n - 1])}
                       </span>
                     </button>
                     <FavoriteButton

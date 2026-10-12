@@ -28,7 +28,7 @@ export function FavoriteButton({
       title={label}
       className={cn(
         "flex shrink-0 items-center justify-center rounded-full transition-[color,background-color,scale] hover:bg-accent active:scale-90",
-        on ? "text-rose-400" : "text-muted-foreground hover:text-foreground",
+        on ? "text-white" : "text-muted-foreground hover:text-foreground",
         className,
       )}
     >

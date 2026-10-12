@@ -1,11 +1,12 @@
 import { cn } from "cn";
-import { AudioLines, BookOpen, CalendarDays, Flame, Play, Sun } from "lucide-react";
-import { href, Link, NavLink, useNavigation } from "react-router";
+import { AudioLines, BookOpen, CalendarDays, Flame, GraduationCap, Play, Sun } from "lucide-react";
+import { href, Link, NavLink, useLocation, useNavigation } from "react-router";
 import { DuaHandsIcon } from "~/components/dua-hands-icon";
 import { LanguageSwitcher } from "~/components/language-switcher";
 import { LogoMark } from "~/components/logo";
 import { MiniPlayer } from "~/components/mini-player";
 import { ProgrammeToggle } from "~/components/programme-toggle";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "~/components/ui/dropdown-menu";
 import { categories, itemInfo } from "~/data/categories";
 import { useLocalize } from "~/lib/localize";
 import { useMiniPlayerVisible } from "~/lib/player";
@@ -31,13 +32,13 @@ function Sidebar() {
   const { programme } = usePreferences();
 
   return (
-    <aside className="fixed inset-y-0 start-0 z-30 hidden w-64 flex-col border-e bg-sidebar lg:flex">
+    <aside className="fixed inset-y-0 start-0 z-30 hidden w-80 flex-col border-e bg-sidebar lg:flex">
       <Link to="/" className="flex h-16 items-center gap-3 px-5">
         <LogoMark />
         <span className="font-semibold tracking-tight">{t("appName")}</span>
       </Link>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+      <nav className="scrollbar-slim flex-1 space-y-1 overflow-y-auto px-3 py-2 [scrollbar-gutter:stable]">
         {programme && (
           <div className="space-y-1 pb-4">
             <NavLink to="/" end className={navClass}>
@@ -120,29 +121,52 @@ function MobileNav() {
 
   return (
     <nav className="flex border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
-      {programme && (
-        <NavLink to="/" end className={item}>
-          <CalendarDays className="size-5" />
-          <span className="max-w-full truncate">{t("nav.program")}</span>
-        </NavLink>
-      )}
-      {programme && (
-        <NavLink to={href("/today")} className={item}>
-          <Sun className="size-5" />
-          <span className="max-w-full truncate">{t("nav.today")}</span>
-        </NavLink>
-      )}
       {categories.map((category) => (
         <NavLink key={category.id} to={href("/categories/:categoryId", { categoryId: category.id })} className={item}>
           <CategoryIcon id={category.id} className="size-5" />
           <span className="max-w-full truncate">{l(category.shortName ?? category.name)}</span>
         </NavLink>
       ))}
-      <NavLink to={resume} className={item}>
-        <Play className="size-5" />
-        <span className="max-w-full truncate">{t("nav.continue")}</span>
-      </NavLink>
+      {/* With the programme on, one tab gathers it, today's lessons and "Continue"; without it, just "Continue". */}
+      {programme ? (
+        <MyStudyMenu resume={p.last ? resume : undefined} className={item} />
+      ) : (
+        <NavLink to={resume} className={item}>
+          <Play className="size-5" />
+          <span className="max-w-full truncate">{t("nav.continue")}</span>
+        </NavLink>
+      )}
     </nav>
+  );
+}
+
+/** Phone tab opening a menu of the programme, today's lessons and (if any) the last lesson. */
+function MyStudyMenu({ resume, className }: { resume?: string; className: (s: { isActive: boolean }) => string }) {
+  const { t } = useLocalize();
+  const { pathname } = useLocation();
+  const links = [
+    { to: "/", label: t("nav.program"), Icon: CalendarDays, active: pathname === "/" },
+    { to: href("/today"), label: t("nav.today"), Icon: Sun, active: pathname.startsWith("/today") },
+    // "Continue" only once a lesson has been started; before that it would just repeat "Today".
+    ...(resume ? [{ to: resume, label: t("nav.continue"), Icon: Play, active: pathname.startsWith("/watch/") }] : []),
+  ];
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className={cn(className({ isActive: links.some((x) => x.active) }), "outline-none")}>
+        <GraduationCap className="size-5" />
+        <span className="max-w-full truncate">{t("nav.mine")}</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="end" sideOffset={8} collisionPadding={12} className="min-w-52 rounded-xl p-1.5">
+        {links.map(({ to, label, Icon, active }) => (
+          <DropdownMenuItem key={label} asChild className={cn("gap-3 rounded-lg px-3 py-2.5", active && "text-primary")}>
+            <Link to={to} aria-current={active ? "page" : undefined}>
+              <Icon className={cn("size-4.5", active && "text-primary")} />
+              {label}
+            </Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -172,7 +196,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-dvh">
       <NavigationProgress />
       <Sidebar />
-      <div className="lg:ps-64">
+      <div className="lg:ps-80">
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-xl sm:px-6">
           <Link to="/" className="flex items-center gap-2 lg:hidden">
             <LogoMark className="size-7" />
@@ -190,7 +214,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       {/* Bottom stack: the mini player (while something plays off-page) above the phone tab bar. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 lg:start-64">
+      <div className="fixed inset-x-0 bottom-0 z-30 lg:start-80">
         <MiniPlayer />
         <MobileNav />
       </div>

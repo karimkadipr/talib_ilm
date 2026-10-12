@@ -13,15 +13,26 @@ export function surahFromTrack(reciterId: string, trackId: string | undefined) {
   return trackId?.startsWith(prefix) ? Number(trackId.slice(prefix.length)) : 0;
 }
 
+/** Which surah comes before and after `n` in a list of surahs (undefined at either end). */
+export type SurahOrder = {
+  prev: (n: number) => number | undefined;
+  next: (n: number) => number | undefined;
+};
+
+/** The order of the mushaf, al-Fātiḥah to an-Nās. */
+export const MUSHAF: SurahOrder = { prev: (n) => n - 1, next: (n) => n + 1 };
+
 /**
- * Builds player tracks for a reciter's surahs in the page language. When one ends, `next` picks
- * what follows (by default the next surah of the mushaf); it's built from plain values, so it
- * still plays on after the listener leaves the page.
+ * Builds player tracks for a reciter's surahs in the page language. `order` gives the previous and
+ * next surah for the players' buttons and picks what follows when one ends (by default the mushaf's
+ * order); it's built from plain values, so it still plays on after the listener leaves the page.
  */
 export function useSurahTrack() {
   const { l, t, isAr } = useLocalize();
-  function make(reciter: Reciter, n: number, next: (n: number) => number | undefined = (x) => x + 1): Track {
+  function make(reciter: Reciter, n: number, order: SurahOrder = MUSHAF): Track {
     const surah = surahs[n - 1];
+    const go = (to: number | undefined) =>
+      to && to >= 1 && to <= surahs.length ? () => player.play(make(reciter, to, order)) : undefined;
     return {
       id: surahTrackId(reciter.id, n),
       src: surahAudioUrl(reciter, n),
@@ -32,10 +43,9 @@ export function useSurahTrack() {
       href: `${href("/reciters/:reciterId", { reciterId: reciter.id })}?surah=${n}`,
       duration: reciter.seconds[n - 1],
       artwork: reciter.photo?.src,
-      onEnded: () => {
-        const after = next(n);
-        if (after && after >= 1 && after <= surahs.length) player.play(make(reciter, after, next));
-      },
+      sequence: { prev: go(order.prev(n)), next: go(order.next(n)) },
+      // Read when it ends, so later changes (e.g. to the favourites) count.
+      onEnded: () => go(order.next(n))?.(),
     };
   }
   return make;

@@ -170,11 +170,15 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
                   </span>
                 </span>
                 {d.intro && (
-                  <span lang="ar" dir="rtl" className="font-adhkar mb-2 block text-base text-muted-foreground">
+                  <span lang="ar" dir="rtl" className="font-adhkar mb-2 block text-sm text-muted-foreground sm:text-base">
                     {d.intro}
                   </span>
                 )}
-                <span lang="ar" dir="rtl" className="font-adhkar block text-[1.5rem] leading-[2.2] text-foreground">
+                <span
+                  lang="ar"
+                  dir="rtl"
+                  className="font-adhkar block text-[1.125rem] leading-loose text-foreground sm:text-[1.25rem]"
+                >
                   {d.text}
                 </span>
                 {d.virtue && (

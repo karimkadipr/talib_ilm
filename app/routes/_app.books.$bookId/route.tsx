@@ -3,10 +3,12 @@ import { BookCheck, BookOpen, Check, ChevronRight, Clock, Play, Undo2, Video } f
 import { data, href, Link, useSearchParams } from "react-router";
 import { BackLink } from "~/components/back-link";
 import { BookCover } from "~/components/book-cover";
+import { BookReader } from "~/components/book-reader";
 import { ScholarAvatar } from "~/components/scholar-avatar";
 import { ScrollRail } from "~/components/scroll-rail";
 import { Button } from "~/components/ui/button";
 import { Progress } from "~/components/ui/progress";
+import { getBookText } from "~/data/book-texts";
 import { getBook } from "~/data/curriculum";
 import { getScholar, seriesForBook, totalMinutes, type Series } from "~/data/explanations";
 import { useLocalize } from "~/lib/localize";
@@ -150,6 +152,19 @@ export default function BookPage({ loaderData }: Route.ComponentProps) {
   const selected = explanations.find((s) => s.scholarId === params.get("s")) ?? explanations[0];
   const status = p.books[book.id];
   const alternatives = entry.options.filter((b) => b.id !== book.id);
+  const text = getBookText(book.id);
+  // The matn as a PDF; it comes first when there are no recorded lessons to listen to.
+  const textSection = text && (
+    <section>
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold">{t("reader.tab")}</h2>
+        {selected && <p className="text-sm text-muted-foreground">{t("reader.hint")}</p>}
+      </div>
+      <div className="max-w-xl">
+        <BookReader bookId={book.id} text={text} />
+      </div>
+    </section>
+  );
 
   return (
     <div style={{ "--hue": subject.hue } as React.CSSProperties} className="space-y-10">
@@ -228,6 +243,8 @@ export default function BookPage({ loaderData }: Route.ComponentProps) {
         )}
       </section>
 
+      {!selected && textSection}
+
       <section>
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
@@ -255,6 +272,8 @@ export default function BookPage({ loaderData }: Route.ComponentProps) {
           </div>
         )}
       </section>
+
+      {selected && textSection}
     </div>
   );
 }

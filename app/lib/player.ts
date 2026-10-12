@@ -25,6 +25,11 @@ export type Track = {
   artwork?: string;
   /** Runs when the recording finishes, even if the listener has moved to another page. */
   onEnded?: () => void;
+  /**
+   * Set for one of a list of recitations (a reciter's surahs): the players step to the previous or
+   * next one (each absent at its end) instead of seeking by seconds, and always play at normal speed.
+   */
+  sequence?: { prev?: () => void; next?: () => void };
 };
 
 export type Status = "loading" | "ready" | "error";
@@ -38,6 +43,9 @@ export type PlayerState = {
   duration: number;
   buffered: number;
   speed: number;
+  /** 0–1, kept while muted so unmuting restores it. */
+  volume: number;
+  muted: boolean;
   /** Where playback resumed from a saved position, until the listener plays on or it times out. */
   resumedAt: number | null;
   /** Recording whose full player is on screen, so the mini player can step aside. */
@@ -50,6 +58,8 @@ export const FORWARD = 30;
 
 const POSITION_KEY = (id: string) => `islamic-studies:position:${id}`;
 const SPEED_KEY = "islamic-studies:speed";
+const VOLUME_KEY = "islamic-studies:volume";
+const MUTED_KEY = "islamic-studies:muted";
 
 export function readPosition(id: string) {
   try {
@@ -77,6 +87,8 @@ const EMPTY: PlayerState = {
   duration: 0,
   buffered: 0,
   speed: 1,
+  volume: 1,
+  muted: false,
   resumedAt: null,
   onScreen: null,
 };
@@ -93,19 +105,62 @@ function set(patch: Partial<PlayerState>) {
   listeners.forEach((l) => l());
 }
 
-let speedLoaded = false;
+let settingsLoaded = false;
 
 function subscribe(l: () => void) {
-  // Show the listener's saved speed before anything has played.
-  if (!speedLoaded) {
-    speedLoaded = true;
+  // Show the listener's saved speed and volume before anything has played.
+  if (!settingsLoaded) {
+    settingsLoaded = true;
     try {
       const saved = Number(localStorage.getItem(SPEED_KEY));
       if (SPEEDS.includes(saved)) state = { ...state, speed: saved };
+      const volume = localStorage.getItem(VOLUME_KEY);
+      if (volume !== null && Number(volume) >= 0 && Number(volume) <= 1) state = { ...state, volume: Number(volume) };
+      state = { ...state, muted: localStorage.getItem(MUTED_KEY) === "1" };
     } catch {}
   }
   listeners.add(l);
   return () => listeners.delete(l);
+}
+
+function saveVolume() {
+  try {
+    localStorage.setItem(VOLUME_KEY, String(state.volume));
+    localStorage.setItem(MUTED_KEY, state.muted ? "1" : "0");
+  } catch {}
+}
+
+/**
+ * Whether this browser lets pages set the volume. iOS doesn't (the hardware buttons are the only
+ * control), so the slider is hidden there. False on the server.
+ */
+export function canSetVolume() {
+  if (typeof Audio === "undefined") return false;
+  const probe = new Audio();
+  probe.volume = 0.5;
+  return probe.volume === 0.5;
+}
+
+/** The listener's chosen speed, except recitations, which always play at normal speed. */
+const rate = () => (state.track?.sequence ? 1 : state.speed);
+
+/** Lock screen, headphones and media keys: seek by seconds, or step through a sequence. */
+function setMediaActions(track: Track | null) {
+  if (!("mediaSession" in navigator)) return;
+  const seq = track?.sequence;
+  const handlers: [MediaSessionAction, MediaSessionActionHandler | null][] = [
+    ["seekbackward", seq ? null : (d) => player.skip(-(d.seekOffset ?? BACK))],
+    ["seekforward", seq ? null : (d) => player.skip(d.seekOffset ?? FORWARD)],
+    ["previoustrack", seq?.prev ?? null],
+    ["nexttrack", seq?.next ?? null],
+  ];
+  for (const [action, handler] of handlers) {
+    try {
+      navigator.mediaSession.setActionHandler(action, handler);
+    } catch {
+      // Action not supported by this browser.
+    }
+  }
 }
 
 function updateBuffered(el: HTMLAudioElement) {
@@ -130,10 +185,12 @@ function element() {
   if (audio) return audio;
   const el = new Audio();
   el.preload = "metadata";
+  el.volume = state.volume;
+  el.muted = state.muted;
 
   el.addEventListener("loadedmetadata", () => {
     set({ duration: el.duration, status: "ready" });
-    el.playbackRate = state.speed;
+    el.playbackRate = rate();
     if (restored || !state.track) return;
     restored = true;
     const at = readPosition(state.track.id);
@@ -184,13 +241,11 @@ function element() {
     track.onEnded?.();
   });
 
-  // Lock screen, headphones and media keys.
+  // Lock screen, headphones and media keys (the per-track ones are in setMediaActions).
   if ("mediaSession" in navigator) {
     const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
       ["play", () => void el.play().catch(() => {})],
       ["pause", () => el.pause()],
-      ["seekbackward", (d) => player.skip(-(d.seekOffset ?? BACK))],
-      ["seekforward", (d) => player.skip(d.seekOffset ?? FORWARD)],
       ["seekto", (d) => d.seekTime !== undefined && player.seek(d.seekTime)],
     ];
     for (const [action, handler] of handlers) {
@@ -235,6 +290,7 @@ export const player = {
           : [],
       });
     }
+    setMediaActions(track);
   },
   toggle() {
     if (!audio || !state.track || state.status !== "ready") return;
@@ -250,11 +306,30 @@ export const player = {
     if (audio) player.seek(audio.currentTime + delta);
   },
   setSpeed(speed: number) {
-    if (audio) audio.playbackRate = speed;
     set({ speed });
+    if (audio) audio.playbackRate = rate();
     try {
       localStorage.setItem(SPEED_KEY, String(speed));
     } catch {}
+  },
+  /** Sets the volume (0–1); turning it up unmutes, sliding it to 0 mutes. */
+  setVolume(volume: number) {
+    const v = Math.min(1, Math.max(0, volume));
+    set({ volume: v, muted: v === 0 });
+    if (audio) {
+      audio.volume = v;
+      audio.muted = v === 0;
+    }
+    saveVolume();
+  },
+  toggleMute() {
+    // Unmuting from a volume of 0 would stay silent, so bring it back up a little.
+    set({ muted: !state.muted, volume: state.muted && state.volume === 0 ? 0.5 : state.volume });
+    if (audio) {
+      audio.volume = state.volume;
+      audio.muted = state.muted;
+    }
+    saveVolume();
   },
   retry() {
     if (!audio) return;
@@ -275,8 +350,9 @@ export const player = {
       audio.load();
     }
     showResumed(null);
-    set({ ...EMPTY, speed: state.speed, onScreen: state.onScreen });
+    set({ ...EMPTY, speed: state.speed, volume: state.volume, muted: state.muted, onScreen: state.onScreen });
     if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
+    setMediaActions(null);
   },
   /** A page's full player for `id` is on screen. */
   enterScreen(id: string) {

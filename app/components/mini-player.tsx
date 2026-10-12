@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Pause, Play, RotateCcw, RotateCw, X } from "lucide-react";
+import { Pause, Play, RotateCcw, RotateCw, SkipBack, SkipForward, X } from "lucide-react";
 import { Link } from "react-router";
 import { Spinner, useClock } from "~/components/audio-lesson";
 import { BACK, FORWARD, player, usePlayer, useMiniPlayerVisible } from "~/lib/player";
@@ -21,6 +21,8 @@ export function MiniPlayer() {
   const pct = s.duration ? (s.time / s.duration) * 100 : 0;
   const busy = s.status === "loading" || s.buffering;
   const ready = s.status === "ready";
+  // Recitations step between surahs instead of seeking by seconds.
+  const seq = track.sequence;
   const title = isAr ? track.book.title.ar : l(track.book.title);
   // A surah's label repeats its title ("Surah al-Ikhlāṣ"), so just the reciter then.
   const subtitle = track.label.includes(title) || title.includes(track.label) ? track.artist : `${track.artist} · ${track.label}`;
@@ -84,16 +86,29 @@ export function MiniPlayer() {
             </span>
           </Link>
 
-          <button
-            type="button"
-            onClick={() => player.skip(-BACK)}
-            disabled={!ready}
-            aria-label={t("watch.back", { s: num(BACK) })}
-            title={t("watch.back", { s: num(BACK) })}
-            className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-40 max-sm:hidden"
-          >
-            <RotateCcw className="size-4.5" />
-          </button>
+          {seq ? (
+            <button
+              type="button"
+              onClick={seq.prev}
+              disabled={!seq.prev}
+              aria-label={t("quran.prev")}
+              title={t("quran.prev")}
+              className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-40 max-sm:hidden"
+            >
+              <SkipBack className="size-4.5 fill-current rtl:rotate-180" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => player.skip(-BACK)}
+              disabled={!ready}
+              aria-label={t("watch.back", { s: num(BACK) })}
+              title={t("watch.back", { s: num(BACK) })}
+              className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-40 max-sm:hidden"
+            >
+              <RotateCcw className="size-4.5" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => (s.status === "error" ? player.retry() : player.toggle())}
@@ -104,16 +119,29 @@ export function MiniPlayer() {
             {s.playing ? <Pause className="size-4.5 fill-current" /> : <Play className="size-4.5 translate-x-px fill-current" />}
             {busy && <Spinner />}
           </button>
-          <button
-            type="button"
-            onClick={() => player.skip(FORWARD)}
-            disabled={!ready}
-            aria-label={t("watch.forward", { s: num(FORWARD) })}
-            title={t("watch.forward", { s: num(FORWARD) })}
-            className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-40 max-sm:hidden"
-          >
-            <RotateCw className="size-4.5" />
-          </button>
+          {seq ? (
+            <button
+              type="button"
+              onClick={seq.next}
+              disabled={!seq.next}
+              aria-label={t("quran.next")}
+              title={t("quran.next")}
+              className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-40 max-sm:hidden"
+            >
+              <SkipForward className="size-4.5 fill-current rtl:rotate-180" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => player.skip(FORWARD)}
+              disabled={!ready}
+              aria-label={t("watch.forward", { s: num(FORWARD) })}
+              title={t("watch.forward", { s: num(FORWARD) })}
+              className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-40 max-sm:hidden"
+            >
+              <RotateCw className="size-4.5" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => player.stop()}

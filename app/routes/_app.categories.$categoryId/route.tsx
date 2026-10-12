@@ -18,7 +18,7 @@ import { useLocalize } from "~/lib/localize";
 import { useAdhkarDone } from "~/lib/adhkar-progress";
 import { player, usePlayer } from "~/lib/player";
 import { quranFavorites, useQuranFavorites } from "~/lib/quran-favorites";
-import { surahTrackId, useSurahTrack } from "~/lib/surah-track";
+import { type SurahOrder, surahTrackId, useSurahTrack } from "~/lib/surah-track";
 import { usePreferences } from "~/lib/preferences";
 import { useProgress } from "~/lib/progress";
 import { subjectProgress } from "~/lib/schedule";
@@ -152,9 +152,12 @@ function FavoriteGroup({ reciter, list }: { reciter: Reciter; list: number[] }) 
   const surahTrack = useSurahTrack();
   const clock = useClock();
   const { l, t, num, isAr } = useLocalize();
-  // After a favourite ends, the next one (read then, so later changes count).
-  const nextFavorite = (n: number) => quranFavorites.of(reciter.id).find((x) => x > n);
-  const play = (n: number) => player.play(surahTrack(reciter, n, nextFavorite));
+  // The favourites before and after a surah (read when needed, so later changes count).
+  const favoriteOrder: SurahOrder = {
+    prev: (n) => [...quranFavorites.of(reciter.id)].reverse().find((x) => x < n),
+    next: (n) => quranFavorites.of(reciter.id).find((x) => x > n),
+  };
+  const play = (n: number) => player.play(surahTrack(reciter, n, favoriteOrder));
 
   return (
     <section style={{ "--hue": reciter.hue } as React.CSSProperties} className="overflow-hidden rounded-2xl border bg-card">
@@ -217,13 +220,16 @@ function FavoriteGroup({ reciter, list }: { reciter: Reciter; list: number[] }) 
                       </span>
                     )}
                   </span>
-                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                    {!isAr && <>{l(surah.meaning)} · </>}
-                    {t("quran.ayahs", { count: surah.ayahs })}
+                  {/* Length under the Arabic name, so names line up whatever its width. */}
+                  <span className="mt-0.5 flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+                    <span className="truncate">
+                      {!isAr && <>{l(surah.meaning)} · </>}
+                      {t("quran.ayahs", { count: surah.ayahs })}
+                    </span>
+                    <span dir="ltr" className="shrink-0 tabular-nums">
+                      {clock(reciter.seconds[n - 1])}
+                    </span>
                   </span>
-                </span>
-                <span dir="ltr" className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {clock(reciter.seconds[n - 1])}
                 </span>
               </button>
               <FavoriteButton reciterId={reciter.id} surah={n} name={name} className="mx-1 size-10 sm:me-2" />
@@ -312,7 +318,7 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
           <TabsList>
             <TabsTrigger value="items">{t("category.reciters")}</TabsTrigger>
             <TabsTrigger value="favorites">
-              <Heart className={cn(favoriteCount > 0 && "fill-rose-400 text-rose-400")} />
+              <Heart className={cn(favoriteCount > 0 && "fill-white text-white")} />
               {t("quran.favoritesTab")}
               {favoriteCount > 0 && <span className="text-xs text-muted-foreground tabular-nums">{num(favoriteCount)}</span>}
             </TabsTrigger>

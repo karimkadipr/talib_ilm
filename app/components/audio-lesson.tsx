@@ -1,9 +1,31 @@
 import { cn } from "cn";
-import { AlertTriangle, ExternalLink, Pause, Play, RotateCcw, RotateCw } from "lucide-react";
+import {
+  AlertTriangle,
+  ExternalLink,
+  Pause,
+  Play,
+  RotateCcw,
+  RotateCw,
+  SkipBack,
+  SkipForward,
+  Volume1,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BookCover } from "~/components/book-cover";
-import { BACK, FORWARD, player, readPosition, SPEEDS, type Track, usePlayer, writePosition } from "~/lib/player";
+import {
+  BACK,
+  canSetVolume,
+  FORWARD,
+  player,
+  readPosition,
+  SPEEDS,
+  type Track,
+  usePlayer,
+  writePosition,
+} from "~/lib/player";
 
 /** h:mm:ss (or m:ss) in the page language's digits. */
 export function useClock() {
@@ -56,6 +78,8 @@ export function AudioLesson({ track }: { track: Track }) {
   const buffered = active ? s.buffered : 0;
   const resumedAt = active ? s.resumedAt : savedNote ? saved : null;
   const otherPlaying = !active && !!s.track && s.playing;
+  // Recitations step between surahs instead of seeking by seconds, at normal speed.
+  const seq = track.sequence;
 
   const toggle = () => {
     if (!active || s.status === "error") player.play(track);
@@ -76,7 +100,8 @@ export function AudioLesson({ track }: { track: Track }) {
     if (active) player.clearResumed();
   };
 
-  // Space / k: play-pause. ← / j: back. → / l: forward. Ignored while typing.
+  // Space / k: play-pause. m: mute. ← / j: back. → / l: forward. In a sequence, Shift+P / Shift+N:
+  // previous / next. Ignored while typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -85,7 +110,12 @@ export function AudioLesson({ track }: { track: Track }) {
       // Space on a focused button already clicks it.
       if (e.key === " " && target.closest("button, a")) return;
       if (e.key === " " || e.key === "k") toggle();
-      else if (e.key === "ArrowLeft" || e.key === "j") skip(-BACK);
+      else if (e.key === "m") player.toggleMute();
+      else if (seq) {
+        if (e.key === "P" && seq.prev) seq.prev();
+        else if (e.key === "N" && seq.next) seq.next();
+        else return;
+      } else if (e.key === "ArrowLeft" || e.key === "j") skip(-BACK);
       else if (e.key === "ArrowRight" || e.key === "l") skip(FORWARD);
       else return;
       e.preventDefault();
@@ -237,14 +267,18 @@ export function AudioLesson({ track }: { track: Track }) {
               {/* Controls */}
               <div className="mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-4 sm:justify-between">
                 <div className="flex items-center gap-3">
-                  <SkipButton
-                    seconds={BACK}
-                    label={t("watch.back", { s: numberFormat.format(BACK) })}
-                    Icon={RotateCcw}
-                    disabled={loading}
-                    onClick={() => skip(-BACK)}
-                    format={numberFormat.format}
-                  />
+                  {seq ? (
+                    <StepButton label={t("quran.prev")} Icon={SkipBack} onClick={seq.prev} />
+                  ) : (
+                    <SkipButton
+                      seconds={BACK}
+                      label={t("watch.back", { s: numberFormat.format(BACK) })}
+                      Icon={RotateCcw}
+                      disabled={loading}
+                      onClick={() => skip(-BACK)}
+                      format={numberFormat.format}
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={toggle}
@@ -259,35 +293,44 @@ export function AudioLesson({ track }: { track: Track }) {
                     )}
                     {busy && <Spinner />}
                   </button>
-                  <SkipButton
-                    seconds={FORWARD}
-                    label={t("watch.forward", { s: numberFormat.format(FORWARD) })}
-                    Icon={RotateCw}
-                    disabled={loading}
-                    onClick={() => skip(FORWARD)}
-                    format={numberFormat.format}
-                  />
+                  {seq ? (
+                    <StepButton label={t("quran.next")} Icon={SkipForward} onClick={seq.next} />
+                  ) : (
+                    <SkipButton
+                      seconds={FORWARD}
+                      label={t("watch.forward", { s: numberFormat.format(FORWARD) })}
+                      Icon={RotateCw}
+                      disabled={loading}
+                      onClick={() => skip(FORWARD)}
+                      format={numberFormat.format}
+                    />
+                  )}
                 </div>
 
-                <div
-                  role="group"
-                  aria-label={t("watch.speed")}
-                  className="flex items-center gap-0.5 rounded-full border border-white/10 bg-black/25 p-1 text-xs"
-                >
-                  {SPEEDS.map((x) => (
-                    <button
-                      key={x}
-                      type="button"
-                      onClick={() => player.setSpeed(x)}
-                      aria-pressed={s.speed === x}
-                      className={cn(
-                        "rounded-full px-2.5 py-1 tabular-nums transition-colors",
-                        s.speed === x ? "bg-white/15 text-white" : "text-white/55 hover:text-white",
-                      )}
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
+                  <VolumeControl />
+                  {!seq && (
+                    <div
+                      role="group"
+                      aria-label={t("watch.speed")}
+                      className="flex items-center gap-0.5 rounded-full border border-white/10 bg-black/25 p-1 text-xs"
                     >
-                      {numberFormat.format(x)}×
-                    </button>
-                  ))}
+                      {SPEEDS.map((x) => (
+                        <button
+                          key={x}
+                          type="button"
+                          onClick={() => player.setSpeed(x)}
+                          aria-pressed={s.speed === x}
+                          className={cn(
+                            "rounded-full px-2.5 py-1 tabular-nums transition-colors",
+                            s.speed === x ? "bg-white/15 text-white" : "text-white/55 hover:text-white",
+                          )}
+                        >
+                          {numberFormat.format(x)}×
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </>
@@ -326,6 +369,71 @@ function SkipButton({
       <span aria-hidden className="absolute pt-px text-[9px] font-semibold tabular-nums">
         {format(seconds)}
       </span>
+    </button>
+  );
+}
+
+/** Mute button and volume slider, shared by every recording. Hidden where pages can't set the volume (iOS). */
+function VolumeControl() {
+  const { t, i18n } = useTranslation();
+  const s = usePlayer();
+  // Known only on the client, so decided after mount to match the server render.
+  const [supported, setSupported] = useState(false);
+  useEffect(() => setSupported(canSetVolume()), []);
+  if (!supported) return null;
+
+  const level = s.muted ? 0 : s.volume;
+  const Icon = level === 0 ? VolumeX : level < 0.5 ? Volume1 : Volume2;
+  const label = s.muted ? t("watch.unmute") : t("watch.mute");
+  const percent = new Intl.NumberFormat(i18n.language, { style: "percent" }).format(level);
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => player.toggleMute()}
+        aria-label={label}
+        title={label}
+        className="flex size-9 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+      >
+        <Icon className="size-5 rtl:-scale-x-100" />
+      </button>
+      <div className="group relative h-5 w-24">
+        <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-white/15 transition-[height] group-hover:h-1.5">
+          <div className="absolute inset-y-0 start-0 bg-white/80" style={{ width: `${level * 100}%` }} />
+        </div>
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 size-3 -translate-y-1/2 rounded-full bg-white shadow ring-4 ring-white/0 transition-[scale,box-shadow] group-hover:scale-110 group-has-focus-visible:ring-white/25 ltr:-translate-x-1/2 rtl:translate-x-1/2"
+          style={{ insetInlineStart: `${level * 100}%` }}
+        />
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={level}
+          aria-label={t("watch.volume")}
+          aria-valuetext={percent}
+          onChange={(e) => player.setVolume(Number(e.currentTarget.value))}
+          className="absolute inset-0 w-full cursor-pointer appearance-none opacity-0"
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Previous / next in a sequence; disabled at its ends. Points the reading direction's way. */
+function StepButton({ label, Icon, onClick }: { label: string; Icon: typeof SkipBack; onClick?: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      aria-label={label}
+      title={label}
+      className="flex size-11 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40 disabled:hover:bg-transparent"
+    >
+      <Icon className="size-6 fill-current rtl:rotate-180" />
     </button>
   );
 }
