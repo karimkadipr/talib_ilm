@@ -246,3 +246,11 @@ body [dir="rtl"] [lang="ar"],
 body [dir="rtl"][lang="ar"] {
   text-align: right;
 }
+
+/* Passages with the listener's notes in a book's text (painted by ~/components/text-notes). */
+::highlight(book-note) {
+  background-color: color-mix(in oklab, var(--gold) 26%, transparent);
+}
+::highlight(book-note-active) {
+  background-color: color-mix(in oklab, var(--gold) 50%, transparent);
+}
