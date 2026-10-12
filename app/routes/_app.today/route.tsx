@@ -323,7 +323,7 @@ export default function Today({ loaderData }: Route.ComponentProps) {
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">{t("today.greeting")}</h1>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-8">
           <TodayHero date={date} />
           <ContinueWatching />

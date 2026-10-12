@@ -34,6 +34,16 @@ function readSpot(bookId: string): { top: number; page: number } | null {
 }
 
 /**
+ * Scrolls only the text's own box so `target` sits at its top. (scrollIntoView would also scroll the
+ * page itself, pulling the player out of view.)
+ */
+function scrollBoxTo(box: HTMLElement, target: HTMLElement | null, behavior: ScrollBehavior) {
+  if (!target) return;
+  const top = target.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 16;
+  box.scrollTo({ top, behavior });
+}
+
+/**
  * The book's matn typed out from its PDF and set in the app's own style: one scrolling column of
  * Arabic text with its sections, Qur'an quotations and the PDF's page numbers, so it's easy to
  * follow while a lesson plays. Reports the PDF page in view so the PDF view can open on it.
@@ -72,7 +82,7 @@ export function BookText({
     if (!el) return;
     const spot = readSpot(bookId);
     if (spot && spot.page === page) el.scrollTop = spot.top;
-    else el.querySelector<HTMLElement>(`[data-page-start="${page}"]`)?.scrollIntoView({ block: "start" });
+    else scrollBoxTo(el, el.querySelector<HTMLElement>(`[data-page-start="${page}"]`), "auto");
     // Only on opening; afterwards the scroll position leads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
@@ -119,9 +129,10 @@ export function BookText({
   }
 
   function jump(id: string) {
-    const target = box.current?.querySelector<HTMLElement>(`[data-section="${id}"]`);
+    const el = box.current;
+    if (!el) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    target?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    scrollBoxTo(el, el.querySelector<HTMLElement>(`[data-section="${id}"]`), reduce ? "auto" : "smooth");
   }
 
   const sectionTitle = content.sections.find((s) => s.id === current.section)?.text;

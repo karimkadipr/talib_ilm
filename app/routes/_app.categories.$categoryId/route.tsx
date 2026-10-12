@@ -261,7 +261,7 @@ function QuranFavorites({ reciterIds }: { reciterIds: string[] }) {
     );
   }
   return (
-    <div className="grid items-start gap-4 xl:grid-cols-2">
+    <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
       {groups.map((r) => (
         <FavoriteGroup key={r.id} reciter={r} list={favorites[r.id]} />
       ))}
@@ -281,7 +281,7 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
   const tab = params.get("tab") === "favorites" ? "favorites" : "items";
 
   const grid = (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {category.items.map((item) =>
         item.kind === "subject" ? (
           <SubjectCard key={item.id} subject={getSubject(item.id)!} />

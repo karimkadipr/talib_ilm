@@ -263,7 +263,7 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
       <div
         dir="ltr"
         style={{ "--hue": subject.hue } as React.CSSProperties}
-        className="grid items-start gap-6 lg:grid-cols-[minmax(0,23rem)_minmax(0,1fr)]"
+        className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,23rem)_minmax(0,1fr)]"
       >
         <aside
           dir={uiDir}
@@ -301,7 +301,7 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
   }
 
   return (
-    <div style={{ "--hue": subject.hue } as React.CSSProperties} className="grid gap-6 xl:grid-cols-[1fr_360px]">
+    <div style={{ "--hue": subject.hue } as React.CSSProperties} className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0 space-y-5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">{backLink}</div>

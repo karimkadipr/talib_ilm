@@ -89,7 +89,7 @@ export default function Program() {
 
       <section>
         <h2 className="mb-4 text-lg font-semibold">{t("program.weekly")}</h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {days.map((day) => (
             <div key={day.id} className="flex flex-col rounded-3xl border bg-card p-2">
               <div className="flex items-center justify-between px-3 pt-2 pb-3">
