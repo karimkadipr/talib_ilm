@@ -24,9 +24,9 @@ export const middleware: Route.MiddlewareFunction[] = [i18nextMiddleware];
 export const handle = { i18n: "common" };
 
 export async function loader({ context, request }: Route.LoaderArgs) {
-  const { programme } = await getPreferences(request);
+  const { programme, sideBySide } = await getPreferences(request);
   // Pages set their own meta; this is the fallback (e.g. for error pages).
-  return { locale: getLanguageOrFallback(getLocale(context)), programme, meta: seo(context, []) };
+  return { locale: getLanguageOrFallback(getLocale(context)), programme, sideBySide, meta: seo(context, []) };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {

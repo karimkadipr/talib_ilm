@@ -47,7 +47,14 @@ export function useClock() {
  * at its saved position, and only takes over (stopping whatever else is playing) when the listener
  * presses play. Lessons run 1–1½ hours, so the position is remembered per recording.
  */
-export function AudioLesson({ track }: { track: Track }) {
+export function AudioLesson({
+  track,
+  compact = false,
+}: {
+  track: Track;
+  /** For a narrow column (the lesson page's side-by-side view): no cover, controls stacked. */
+  compact?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const clock = useClock();
   const s = usePlayer();
@@ -153,9 +160,9 @@ export function AudioLesson({ track }: { track: Track }) {
     >
       <div className="bg-khatam absolute inset-0 opacity-60 mask-[linear-gradient(to_bottom,black,transparent)]" />
 
-      <div className="relative grid items-center gap-6 p-5 sm:grid-cols-[auto_1fr] sm:gap-8 sm:p-8">
+      <div className={cn("relative grid items-center gap-6 p-5", !compact && "sm:grid-cols-[auto_1fr] sm:gap-8 sm:p-8")}>
         {/* Cover with an equaliser that moves while the recording plays. */}
-        <div className="relative mx-auto">
+        <div className={cn("relative mx-auto", compact && "hidden")}>
           <BookCover
             book={track.book}
             hue={track.hue}
@@ -265,7 +272,12 @@ export function AudioLesson({ track }: { track: Track }) {
               </div>
 
               {/* Controls */}
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-4 sm:justify-between">
+              <div
+                className={cn(
+                  "mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-4",
+                  !compact && "sm:justify-between",
+                )}
+              >
                 <div className="flex items-center gap-3">
                   {seq ? (
                     <StepButton label={t("quran.prev")} Icon={SkipBack} onClick={seq.prev} />

@@ -8,6 +8,7 @@ import { ScholarAvatar } from "~/components/scholar-avatar";
 import { ScrollRail } from "~/components/scroll-rail";
 import { Button } from "~/components/ui/button";
 import { Progress } from "~/components/ui/progress";
+import { getBookContent } from "~/data/book-content.server";
 import { getBookText } from "~/data/book-texts";
 import { getBook } from "~/data/curriculum";
 import { getScholar, seriesForBook, totalMinutes, type Series } from "~/data/explanations";
@@ -20,7 +21,12 @@ import type { Route } from "./+types/route";
 export async function loader({ params, context }: Route.LoaderArgs) {
   const loc = getBook(params.bookId);
   if (!loc) throw data(null, { status: 404 });
-  return { bookId: loc.book.id, meta: seo(context, [localizer(context).l(loc.book.title)]) };
+  return {
+    bookId: loc.book.id,
+    meta: seo(context, [localizer(context).l(loc.book.title)]),
+    // The typed-out matn, if it's been done (sent only to pages that show it).
+    content: getBookContent(loc.book.id),
+  };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -163,7 +169,7 @@ export default function BookPage({ loaderData }: Route.ComponentProps) {
         {selected && <p className="text-sm text-muted-foreground">{t("reader.hint")}</p>}
       </div>
       <div className="max-w-xl">
-        <BookReader bookId={book.id} text={text} />
+        <BookReader bookId={book.id} text={text} content={loaderData.content} />
       </div>
     </section>
   );

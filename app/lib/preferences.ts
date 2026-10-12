@@ -5,13 +5,21 @@ const FETCHER_KEY = "set-preferences";
 
 /** Display preferences from the root loader, with a pending change applied straight away. */
 export function usePreferences() {
-  const root = useRouteLoaderData("root") as { programme?: boolean } | undefined;
+  const root = useRouteLoaderData("root") as { programme?: boolean; sideBySide?: boolean } | undefined;
   const fetcher = useFetcher({ key: FETCHER_KEY });
-  const pending = fetcher.formData?.get("programme");
-  return { programme: pending ? pending === "on" : root?.programme !== false };
+  const pending = (key: string) => fetcher.formData?.get(key);
+  const programme = pending("programme");
+  const sideBySide = pending("sideBySide");
+  return {
+    programme: programme ? programme === "on" : root?.programme !== false,
+    sideBySide: sideBySide ? sideBySide === "on" : root?.sideBySide === true,
+  };
 }
 
-export function useSetProgramme() {
+function useSetPreference(key: "programme" | "sideBySide") {
   const fetcher = useFetcher({ key: FETCHER_KEY });
-  return (on: boolean) => fetcher.submit({ programme: on ? "on" : "off" }, { method: "post", action: ACTION });
+  return (on: boolean) => fetcher.submit({ [key]: on ? "on" : "off" }, { method: "post", action: ACTION });
 }
+
+export const useSetProgramme = () => useSetPreference("programme");
+export const useSetSideBySide = () => useSetPreference("sideBySide");
