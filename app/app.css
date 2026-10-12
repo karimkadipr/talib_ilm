@@ -18,6 +18,8 @@
   --animate-eq: eq 0.9s ease-in-out infinite;
   --animate-shimmer: shimmer 1.4s ease-in-out infinite;
   --animate-indeterminate: indeterminate 1.2s ease-in-out infinite;
+  /* Adhkar guide: the finger pressing the highlighted card. */
+  --animate-tap: tap 1.4s ease-in-out infinite;
 
   @keyframes eq {
     0%, 100% { transform: scaleY(0.3); }
@@ -31,6 +33,10 @@
     from { transform: translateX(-100%) scaleX(0.4); }
     50% { transform: translateX(30%) scaleX(0.6); }
     to { transform: translateX(120%) scaleX(0.4); }
+  }
+  @keyframes tap {
+    0%, 60%, 100% { transform: scale(1); }
+    30% { transform: scale(0.82); }
   }
 }
 

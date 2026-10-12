@@ -5,14 +5,16 @@ import {
   ArrowUp,
   ArrowUpToLine,
   Check,
+  CircleHelp,
   EllipsisVertical,
   ListRestart,
   Moon,
   RotateCcw,
   Sun,
 } from "lucide-react";
-import { useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { data } from "react-router";
+import { AdhkarGuide, type GuideStep, TapHint } from "~/components/adhkar-guide";
 import { BackLink } from "~/components/back-link";
 import {
   DropdownMenu,
@@ -24,6 +26,7 @@ import {
 import { categoryOf } from "~/data/categories";
 import { getAdhkarCollection } from "~/data/adhkar";
 import { getAdhkar } from "~/data/adhkar.server";
+import { adhkarGuide } from "~/lib/adhkar-guide";
 import { adhkarOrder, useAdhkarOrder } from "~/lib/adhkar-order";
 import { adhkarProgress, useAdhkarDone } from "~/lib/adhkar-progress";
 import { useLocalize } from "~/lib/localize";
@@ -60,6 +63,48 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
   const finished = adhkar.filter((d, i) => done[i] >= d.count).length;
   const Icon = collection.icon === "sun" ? Sun : Moon;
 
+  // First-visit guide: the step and the card (original index) it lifts above the dim.
+  const [guide, setGuide] = useState<{ step: GuideStep; i: number } | null>(null);
+  const latest = useRef({ done, order });
+  latest.current = { done, order };
+
+  const startGuide = useCallback(() => {
+    const { done, order } = latest.current;
+    const first = order.find((k) => done[k] < adhkar[k].count);
+    if (first !== undefined) setGuide({ step: "tap", i: first });
+  }, [adhkar]);
+
+  // Keep the guided card in view above the guide's panel: from its top (where the tap hint sits),
+  // or, for the ⋮ step, far enough up that its footer clears the panel.
+  const guideStep = guide?.step;
+  const guideCard = guide?.i;
+  useEffect(() => {
+    if (guideCard === undefined) return;
+    const id = requestAnimationFrame(() => {
+      const el = cards.current[guideCard];
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const panel = document.getElementById("adhkar-guide")?.getBoundingClientRect().top ?? window.innerHeight;
+      let delta = r.top - 88;
+      if (guideStep === "menu") delta = Math.max(delta, r.bottom - (panel - 16));
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollBy({ top: delta, behavior: reduce ? "auto" : "smooth" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [guideStep, guideCard]);
+
+  const closeGuide = useCallback(() => {
+    adhkarGuide.markSeen();
+    setGuide(null);
+  }, []);
+
+  useEffect(() => {
+    setGuide(null); // switching between morning and evening drops a guide left open
+    if (adhkarGuide.seen()) return;
+    const id = window.setTimeout(startGuide, 600);
+    return () => window.clearTimeout(id);
+  }, [startGuide]);
+
   function tap(i: number) {
     const d = adhkar[i];
     if (done[i] >= d.count) return;
@@ -67,6 +112,12 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
     if (now >= d.count) {
       // Bring the next unfinished dhikr (in the reader's order) into view.
       const next = order.slice(order.indexOf(i) + 1).find((k) => done[k] < adhkar[k].count) ?? -1;
+      if (guide?.step === "tap" && guide.i === i) {
+        // The guide scrolls to it, clear of its panel.
+        if (next >= 0) setGuide({ step: "next", i: next });
+        else closeGuide();
+        return;
+      }
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (next >= 0)
         cards.current[next]?.scrollIntoView({
@@ -123,6 +174,17 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
                 )}
               </span>
             </p>
+            {finished < adhkar.length && (
+              <button
+                type="button"
+                onClick={startGuide}
+                dir={uiDir}
+                className="-ms-1 mt-2 inline-flex items-center gap-1.5 rounded-full px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <CircleHelp className="size-3.5" />
+                {t("adhkar.guideReplay")}
+              </button>
+            )}
           </div>
           {finished > 0 && (
             <button
@@ -143,6 +205,7 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
           const d = adhkar[i];
           const count = done[i];
           const complete = count >= d.count;
+          const guided = guide?.i === i ? guide.step : null;
           return (
             <li
               key={i}
@@ -150,10 +213,12 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
                 cards.current[i] = el;
               }}
               className={cn(
-                "overflow-hidden rounded-3xl border bg-card transition-[opacity,border-color]",
+                "scroll-mt-20 overflow-hidden rounded-3xl border bg-card transition-[opacity,border-color]",
                 complete ? "opacity-50" : "hover:tint-border",
+                guided && "relative z-50 ring-2 ring-[oklch(0.78_0.12_var(--hue))]",
               )}
             >
+              {guided === "tap" && <TapHint />}
               {/* The whole text is the tap target, like a tasbih. */}
               <button
                 type="button"
@@ -225,7 +290,10 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
                     <DropdownMenuTrigger
                       aria-label={t("adhkar.reorder")}
                       title={t("adhkar.reorder")}
-                      className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      className={cn(
+                        "rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                        guided === "menu" && "tint-bg tint-fg ring-2 ring-[oklch(0.78_0.12_var(--hue))]",
+                      )}
                     >
                       <EllipsisVertical className="size-4" />
                     </DropdownMenuTrigger>
@@ -275,6 +343,16 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
           </a>
         </span>
       </p>
+
+      {guide && (
+        <AdhkarGuide
+          step={guide.step}
+          count={adhkar[guide.i].count}
+          left={adhkar[guide.i].count - done[guide.i]}
+          onNext={() => setGuide({ ...guide, step: "menu" })}
+          onClose={closeGuide}
+        />
+      )}
     </div>
   );
 }

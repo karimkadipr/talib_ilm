@@ -269,7 +269,7 @@ function WeekStrip({ date }: { date: Date }) {
           {t("today.fullProgram")}
         </Link>
       </div>
-      <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 lg:grid-cols-7">
+      <div className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:scroll-px-0 sm:px-0 lg:grid-cols-7">
         {days.map((day) => {
           const subject = subjectFor(day.id, date);
           const current = currentEntry(subject, p);

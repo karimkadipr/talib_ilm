@@ -263,7 +263,7 @@ export default function BookPage({ loaderData }: Route.ComponentProps) {
 
         {selected ? (
           <div className="space-y-5">
-            <ScrollRail className="-mx-4 flex snap-x gap-3 px-4 pb-3 sm:mx-0 sm:px-0">
+            <ScrollRail className="-mx-4 flex snap-x scroll-px-4 gap-3 px-4 pb-3 sm:mx-0 sm:scroll-px-0 sm:px-0">
               {explanations.map((s) => (
                 <ScholarCard key={s.id} s={s} selected={s.id === selected.id} />
               ))}
