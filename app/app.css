@@ -261,7 +261,8 @@ body [dir="rtl"][lang="ar"] {
   background-color: color-mix(in oklab, var(--gold) 50%, transparent);
 }
 
-/* The listener's bookmark in a book's text: a ribbon in the margin beside its paragraph (set by
+/* The listener's bookmark in a book's text: a ribbon in the margin at the start of its paragraph,
+   and a line down the rest of it, so it shows wherever the paragraph is cut off (set by
    ~/components/book-text; drawn here so the paragraph's text stays as it is). */
 [data-bookmarked] {
   position: relative;
@@ -269,10 +270,20 @@ body [dir="rtl"][lang="ar"] {
 [data-bookmarked]::before {
   content: "";
   position: absolute;
-  inset-inline-start: -1.1rem;
-  top: 0.55em;
-  width: 0.625rem;
-  height: 0.9rem;
+  inset-inline-start: -1.2rem;
+  top: 0.35em;
+  width: 0.75rem;
+  height: 1.05rem;
   background-color: oklch(0.78 0.12 var(--hue, 163));
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+}
+[data-bookmarked]::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(-1.2rem + 0.375rem - 1px);
+  top: calc(0.35em + 1.3rem);
+  bottom: 0.35em;
+  width: 2px;
+  border-radius: 1px;
+  background-color: oklch(0.78 0.12 var(--hue, 163) / 0.4);
 }

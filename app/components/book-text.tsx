@@ -44,6 +44,20 @@ function scrollBoxTo(box: HTMLElement, target: HTMLElement | null, behavior: Scr
   box.scrollTo({ top, behavior });
 }
 
+/** Briefly lights up a paragraph, so the listener sees where the bookmark is. */
+function glow(target: HTMLElement | null | undefined) {
+  if (!target?.animate) return;
+  const hue = getComputedStyle(target).getPropertyValue("--hue").trim() || "163";
+  const color = `oklch(0.78 0.12 ${hue} / 0.22)`;
+  target.animate(
+    [
+      { backgroundColor: color, boxShadow: `0 0 0 0.4em ${color}`, borderRadius: "0.4em" },
+      { backgroundColor: "transparent", boxShadow: "0 0 0 0.4em transparent", borderRadius: "0.4em" },
+    ],
+    { duration: 1800, easing: "ease-out" },
+  );
+}
+
 /**
  * The book's matn typed out from its PDF and set in the app's own style: one scrolling column of
  * Arabic text with its sections, Qur'an quotations and the PDF's page numbers, so it's easy to
@@ -95,8 +109,11 @@ export function BookText({
     }
     // Keep the bookmarked paragraph at the top while the text settles (the page's layout, the fonts),
     // until the listener takes over.
-    const hold = () => scrollBoxTo(el, el.querySelector<HTMLElement>(`[data-block="${saved.b}"]`), "auto");
+    const target = () => el.querySelector<HTMLElement>(`[data-block="${saved.b}"]`);
+    const hold = () => scrollBoxTo(el, target(), "auto");
     hold();
+    // Show the listener where they've landed.
+    const lit = setTimeout(() => glow(target()), 400);
     const observer = new ResizeObserver(hold);
     if (article.current) observer.observe(article.current);
     const inputs = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
@@ -107,7 +124,10 @@ export function BookText({
     };
     const timer = setTimeout(release, 4000);
     for (const type of inputs) window.addEventListener(type, release, { capture: true, passive: true });
-    return release;
+    return () => {
+      release();
+      clearTimeout(lit);
+    };
     // Only on opening; afterwards the scroll position leads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
@@ -153,24 +173,38 @@ export function BookText({
     } catch {}
   }
 
+  /** Scrolls the text to the element matching `selector`, and returns it. */
   function jump(selector: string) {
     const el = box.current;
-    if (!el) return;
+    const target = el?.querySelector<HTMLElement>(selector);
+    if (!el || !target) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    scrollBoxTo(el, el.querySelector<HTMLElement>(selector), reduce ? "auto" : "smooth");
+    scrollBoxTo(el, target, reduce ? "auto" : "smooth");
+    return target;
   }
 
-  /** Bookmarks the paragraph at the top of the view (moving the book's one bookmark there). */
+  /**
+   * Bookmarks the paragraph at the top of the view (moving the book's one bookmark there): the first
+   * one that starts in the top half of the view, so its ribbon is on screen. Failing that (one long
+   * paragraph fills the view), the one running through the top, brought down so its start shows.
+   */
   function placeBookmark() {
     const el = box.current;
     if (!el) return;
-    const top = el.getBoundingClientRect().top + 24;
-    const target = [...el.querySelectorAll<HTMLElement>("[data-block]")].find((b) => b.getBoundingClientRect().bottom > top);
+    const top = el.getBoundingClientRect().top;
+    const blocks = [...el.querySelectorAll<HTMLElement>("[data-block]")];
+    const target =
+      blocks.find((b) => {
+        const at = b.getBoundingClientRect().top;
+        return at >= top - 2 && at < top + el.clientHeight / 2;
+      }) ?? blocks.find((b) => b.getBoundingClientRect().bottom > top + 24);
     if (!target) return;
     const b = Number(target.dataset.block);
     const block = content.blocks[b];
     const quote = (target.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
     bookmarks.set(bookId, { b, page: block && block.type !== "page" ? block.page : current.page, quote });
+    if (target.getBoundingClientRect().top < top) jump(`[data-block="${b}"]`);
+    glow(target);
   }
 
   const sectionTitle = content.sections.find((s) => s.id === current.section)?.text;
@@ -235,7 +269,7 @@ export function BookText({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()} className="w-72 rounded-xl p-1.5">
             {mark && (
-              <DropdownMenuItem onSelect={() => jump(`[data-block="${mark.b}"]`)} className="flex-col items-stretch gap-1 rounded-lg px-3 py-2">
+              <DropdownMenuItem onSelect={() => glow(jump(`[data-block="${mark.b}"]`))} className="flex-col items-stretch gap-1 rounded-lg px-3 py-2">
                 <span className="text-xs text-muted-foreground">{t("reader.goToBookmark")}</span>
                 <span className="flex items-baseline justify-between gap-3">
                   <span lang="ar" dir="rtl" className="font-arabic line-clamp-1 flex-1 text-base text-foreground">
