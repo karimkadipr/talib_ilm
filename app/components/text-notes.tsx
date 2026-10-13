@@ -227,6 +227,7 @@ export function useTextNotes({
   const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger
+        data-tour="notes"
         className="flex h-8 items-center gap-1.5 rounded-full px-2.5 text-sm text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
         aria-label={t("reader.notes")}
         title={t("reader.notes")}

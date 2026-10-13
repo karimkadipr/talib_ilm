@@ -4,6 +4,7 @@ import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BookText } from "~/components/book-text";
+import { PageTour, TourButton, type TourStep, useTour } from "~/components/page-tour";
 import type { BookContent } from "~/data/book-content";
 import type { BookText as BookPdf } from "~/data/book-texts";
 import { bookmarks } from "~/lib/book-bookmark";
@@ -34,7 +35,8 @@ function writePage(bookId: string, page: number) {
  * The book's text beside its lessons. When the matn has been typed out it opens in the app's own
  * reading style (BookText), with the original PDF a tap away; otherwise it shows the PDF. Both
  * views share the page, so switching keeps the listener's place, and it's remembered per book. On
- * arriving it opens at the book's bookmark, if the listener has placed one.
+ * arriving it opens at the book's bookmark, if the listener has placed one. The first time the text
+ * comes into view, a short tour shows how to take notes on it and bookmark it.
  */
 export function BookReader({
   bookId,
@@ -57,6 +59,26 @@ export function BookReader({
   const total = content?.pages ?? text.pages;
   // Until the listener switches views: the text opens at the bookmark rather than where they left off.
   const [landing, setLanding] = useState(true);
+  const box = useRef<HTMLDivElement>(null);
+  const [seen, setSeen] = useState(false);
+  const textShown = !!content && view === "text" && saved !== null;
+  const tour = useTour("text", textShown && seen);
+  const tourSteps: TourStep[] = [
+    { target: "text", title: t("tour.noteTitle"), body: t("tour.note") },
+    { target: "notes", title: t("tour.notesListTitle"), body: t("tour.notesList") },
+    { target: "bookmark", title: t("tour.bookmarkTitle"), body: t("tour.bookmark") },
+    // On a lesson's page: its own notes, beside the ones on the text.
+    { target: "lesson-notes", title: t("tour.lessonNotesTitle"), body: t("tour.lessonNotes") },
+  ];
+
+  // The tour waits until the text is on screen (on a book's page it sits below the lessons).
+  useEffect(() => {
+    const el = box.current;
+    if (!el || seen) return;
+    const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && setSeen(true), { threshold: 0.25 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [seen]);
 
   useEffect(() => setPage(Math.min(bookmarks.get(bookId)?.page ?? readPage(bookId), total)), [bookId, total]);
   useEffect(() => {
@@ -84,24 +106,27 @@ export function BookReader({
   }
 
   return (
-    <div className="space-y-3">
+    <div ref={box} className="space-y-3">
       {content && (
-        <div role="tablist" aria-label={t("reader.view")} className="inline-flex rounded-full border bg-card p-1 text-sm">
-          {(["text", "pdf"] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              role="tab"
-              aria-selected={view === v}
-              onClick={() => choose(v)}
-              className={cn(
-                "rounded-full px-3.5 py-1 transition-colors",
-                view === v ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {v === "text" ? t("reader.viewText") : t("reader.viewPdf")}
-            </button>
-          ))}
+        <div className="flex items-center justify-between gap-3">
+          <div role="tablist" aria-label={t("reader.view")} className="inline-flex rounded-full border bg-card p-1 text-sm">
+            {(["text", "pdf"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => choose(v)}
+                className={cn(
+                  "rounded-full px-3.5 py-1 transition-colors",
+                  view === v ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {v === "text" ? t("reader.viewText") : t("reader.viewPdf")}
+              </button>
+            ))}
+          </div>
+          {view === "text" && <TourButton onClick={tour.start} />}
         </div>
       )}
 
@@ -114,6 +139,7 @@ export function BookReader({
       ) : (
         <PdfView text={text} page={page} go={go} />
       )}
+      {tour.open && textShown && <PageTour steps={tourSteps} onClose={tour.close} />}
 
       <p className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <span>

@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Check, ChevronLeft, ChevronRight, Columns2, Play, Rows2 } from "lucide-react";
+import { BookOpen, Check, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { useEffect } from "react";
 import { data, href, Link } from "react-router";
 import { AudioLesson } from "~/components/audio-lesson";
@@ -15,7 +15,6 @@ import { getBookText } from "~/data/book-texts";
 import { getBook } from "~/data/curriculum";
 import { getScholar, getSeries, seriesForBook } from "~/data/explanations";
 import { useLocalize } from "~/lib/localize";
-import { usePreferences, useSetSideBySide } from "~/lib/preferences";
 import { lessonKey, progress, useProgress, watchedCount } from "~/lib/progress";
 import { pageMeta } from "~/lib/meta";
 import { localizer, seo } from "~/lib/meta.server";
@@ -60,26 +59,6 @@ function Player({ videoId, children }: { videoId?: string; children: React.React
   );
 }
 
-/** Switches the lesson page between one column and the side-by-side view (wide screens only). */
-function LayoutToggle({ on }: { on: boolean }) {
-  const { t } = useLocalize();
-  const setSideBySide = useSetSideBySide();
-  const Icon = on ? Rows2 : Columns2;
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      className="shrink-0 rounded-full max-lg:hidden"
-      aria-pressed={on}
-      title={t("watch.sideBySideHint")}
-      onClick={() => setSideBySide(!on)}
-    >
-      <Icon />
-      {on ? t("watch.singleColumn") : t("watch.sideBySide")}
-    </Button>
-  );
-}
-
 export default function Watch({ loaderData }: Route.ComponentProps) {
   const s = getSeries(loaderData.seriesId)!;
   const n = loaderData.lesson;
@@ -89,15 +68,15 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
   const others = seriesForBook(book.id);
   const p = useProgress();
   const { l, t, num, duration, isAr } = useLocalize();
-  const { sideBySide } = usePreferences();
   const watched = !!p.watched[lessonKey(s.id, n)];
   const noteKey = lessonKey(s.id, n);
   const prev = s.lessons.find((x) => x.n === n - 1);
   const next = s.lessons.find((x) => x.n === n + 1);
   const done = watchedCount(p, s.id, s.lessons.length);
   const text = getBookText(book.id);
-  // Side by side only makes sense with the book's text to read.
-  const side = sideBySide && !!text;
+  // With the book's text: the player beside it. Without: one column (the layout toggle and its saved
+  // preference are set aside for now).
+  const side = !!text;
 
   useEffect(() => {
     progress.open(s.id, book.id, n);
@@ -245,7 +224,9 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
     <Tabs defaultValue="lessons" dir={uiDir}>
       <TabsList>
         <TabsTrigger value="lessons">{t("watch.lessons")}</TabsTrigger>
-        <TabsTrigger value="notes">{t("watch.notes")}</TabsTrigger>
+        <TabsTrigger value="notes" data-tour="lesson-notes">
+          {t("watch.notes")}
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="lessons" className="mt-3">
         <div className="scrollbar-slim max-h-80 overflow-y-auto rounded-2xl border bg-card">{lessonList}</div>
@@ -269,10 +250,7 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
           dir={uiDir}
           className="scrollbar-slim min-w-0 space-y-4 lg:sticky lg:top-22 lg:max-h-[calc(100dvh-6.5rem)] lg:overflow-y-auto lg:pe-1"
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">{backLink}</div>
-            <LayoutToggle on />
-          </div>
+          <div className="min-w-0">{backLink}</div>
           {player}
           <div className="space-y-4 rounded-2xl border bg-card p-4">
             <div>
@@ -303,11 +281,14 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
   return (
     <div style={{ "--hue": subject.hue } as React.CSSProperties} className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0 space-y-5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">{backLink}</div>
-          {text && <LayoutToggle on={false} />}
+        <div className="min-w-0">{backLink}</div>
+        <div className="space-y-2">
+          {player}
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <BookOpen className="size-3.5 shrink-0" />
+            {t("watch.noText")}
+          </p>
         </div>
-        {player}
 
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
@@ -331,19 +312,14 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
 
         <div className="border-y py-3">{prevNext}</div>
 
-        {/* With the book's text, reading along is the first tab. */}
         {/* Radix defaults to ltr; follow the page so Arabic tabs and their content read right-to-left. */}
-        <Tabs defaultValue={text ? "text" : "notes"} dir={uiDir}>
+        <Tabs defaultValue="notes" dir={uiDir}>
           <TabsList>
-            {text && <TabsTrigger value="text">{t("reader.tab")}</TabsTrigger>}
-            <TabsTrigger value="notes">{t("watch.notes")}</TabsTrigger>
+            <TabsTrigger value="notes" data-tour="lesson-notes">
+              {t("watch.notes")}
+            </TabsTrigger>
             <TabsTrigger value="about">{t("watch.about")}</TabsTrigger>
           </TabsList>
-          {text && (
-            <TabsContent value="text" className="mt-3">
-              <BookReader bookId={book.id} text={text} content={loaderData.content} />
-            </TabsContent>
-          )}
           <TabsContent value="notes" className="mt-3">
             {notes}
           </TabsContent>

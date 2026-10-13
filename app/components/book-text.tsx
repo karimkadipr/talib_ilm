@@ -226,6 +226,7 @@ export function BookText({
         </span>
         <DropdownMenu>
           <DropdownMenuTrigger
+            data-tour="bookmark"
             className={cn(tool, "outline-none focus-visible:ring-2 focus-visible:ring-ring/50", mark && "tint-fg")}
             aria-label={t("reader.bookmark")}
             title={t("reader.bookmark")}
@@ -277,6 +278,7 @@ export function BookText({
 
       <div
         ref={box}
+        data-tour="text"
         lang="ar"
         dir="rtl"
         style={{ fontSize: SIZES[size] }}
