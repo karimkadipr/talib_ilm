@@ -78,6 +78,12 @@ export function AudioLesson({
     return () => player.leaveScreen(track.id);
   }, [track.id]);
 
+  // Load the recording in the background, so pressing play starts it straight away.
+  useEffect(() => {
+    player.prepare(track);
+    return () => player.unprepare(track.id);
+  }, [track.id]);
+
   const status = active ? s.status : "idle";
   const playing = active && s.playing;
   const buffering = active && s.buffering;

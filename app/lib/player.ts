@@ -111,6 +111,9 @@ let failures = 0;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let stallTimer: ReturnType<typeof setTimeout> | undefined;
 let autoplay = true;
+// The open page's recording, loading in a hidden element before the listener presses play, so it
+// starts at once. Play swaps it in for the current element (see prepare).
+let standby: { id: string; el: HTMLAudioElement } | null = null;
 const listeners = new Set<() => void>();
 
 function set(patch: Partial<PlayerState>) {
@@ -224,88 +227,43 @@ function fail(el: HTMLAudioElement) {
   }, Math.min(failures, 5) * 1000);
 }
 
-/** The audio element, created on first use (client only) and kept for the life of the tab. */
+/** The recording's length is known: start from its saved position and play (unless paused). */
+function onMetadata(el: HTMLAudioElement) {
+  set({ duration: el.duration, status: "ready" });
+  el.playbackRate = rate();
+  if (restored || !state.track) return;
+  restored = true;
+  // After an automatic reload: no "picked up where you left off" note.
+  const quiet = state.reconnecting > 0;
+  set({ reconnecting: 0 });
+  const at = readPosition(state.track.id);
+  const start = at && at < el.duration - 5 ? at : 0;
+  // A prepared element may already sit at an older saved position (e.g. before "Start over").
+  if (el.currentTime !== start) el.currentTime = start;
+  if (start) {
+    set({ time: start });
+    if (!quiet) showResumed(start);
+  }
+  if (autoplay) void el.play().catch(() => {});
+}
+
+/** Stops an element and drops its download. */
+function release(el: HTMLAudioElement) {
+  el.pause();
+  el.removeAttribute("src");
+  el.load();
+}
+
+/** The audio element, created on first use (client only) and kept until a prepared one replaces it. */
 function element() {
   if (audio) return audio;
-  const el = new Audio();
-  el.preload = "metadata";
-  el.volume = state.volume;
-  el.muted = state.muted;
-
-  el.addEventListener("loadedmetadata", () => {
-    set({ duration: el.duration, status: "ready" });
-    el.playbackRate = rate();
-    if (restored || !state.track) return;
-    restored = true;
-    // After an automatic reload: no "picked up where you left off" note.
-    const quiet = state.reconnecting > 0;
-    set({ reconnecting: 0 });
-    const at = readPosition(state.track.id);
-    if (at && at < el.duration - 5) {
-      el.currentTime = at;
-      set({ time: at });
-      if (!quiet) showResumed(at);
-    }
-    if (autoplay) void el.play().catch(() => {});
-  });
-  el.addEventListener("durationchange", () => Number.isFinite(el.duration) && set({ duration: el.duration }));
-  el.addEventListener("timeupdate", () => {
-    const now = el.currentTime;
-    set({ time: now });
-    updateBuffered(el);
-    // Save at most every 5 seconds.
-    if (state.track && Math.abs(now - lastSaved) >= 5) {
-      lastSaved = now;
-      writePosition(state.track.id, now);
-    }
-  });
-  el.addEventListener("progress", () => updateBuffered(el));
-  el.addEventListener("play", () => {
-    set({ playing: true });
-    if (state.resumedAt !== null) showResumed(null);
-  });
-  el.addEventListener("pause", () => {
-    set({ playing: false });
-    if (state.track) writePosition(state.track.id, el.currentTime);
-  });
-  el.addEventListener("waiting", () => {
-    set({ buffering: true });
-    // Stuck waiting for data while meant to be playing: treat it as a failure.
-    clearTimeout(stallTimer);
-    stallTimer = setTimeout(() => !el.paused && state.buffering && fail(el), STALL_MS);
-  });
-  el.addEventListener("seeking", () => set({ buffering: true }));
-  el.addEventListener("playing", () => {
-    set({ buffering: false });
-    // Playing again: the next failure starts a fresh round of retries.
-    resetRetries();
-  });
-  el.addEventListener("canplay", () => {
-    set({ buffering: false });
-    clearTimeout(stallTimer);
-  });
-  el.addEventListener("seeked", () => {
-    set({ buffering: false });
-    updateBuffered(el);
-  });
-  el.addEventListener("error", () => {
-    // ABORTED: the source was changed or removed on purpose (a new recording, or Stop).
-    if (el.error?.code === MediaError.MEDIA_ERR_ABORTED) return;
-    fail(el);
-  });
-  el.addEventListener("ended", () => {
-    set({ playing: false });
-    const track = state.track;
-    if (!track) return;
-    writePosition(track.id, 0);
-    track.onEnded?.();
-  });
+  audio = createElement();
 
   // Lock screen, headphones and media keys (the per-track ones are in setMediaActions).
   if ("mediaSession" in navigator) {
     const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
-      ["play", () => void el.play().catch(() => {})],
-      ["pause", () => el.pause()],
+      ["play", () => void audio?.play().catch(() => {})],
+      ["pause", () => audio?.pause()],
       ["seekto", (d) => d.seekTime !== undefined && player.seek(d.seekTime)],
     ];
     for (const [action, handler] of handlers) {
@@ -316,32 +274,116 @@ function element() {
       }
     }
   }
+  return audio;
+}
 
-  audio = el;
+function createElement() {
+  const el = new Audio();
+  el.preload = "metadata";
+  el.volume = state.volume;
+  el.muted = state.muted;
+
+  // Only the player's current element drives the state; a standby one loads quietly.
+  const on = <K extends keyof HTMLMediaElementEventMap>(type: K, fn: () => void) =>
+    el.addEventListener(type, () => el === audio && fn());
+
+  on("loadedmetadata", () => onMetadata(el));
+  on("durationchange", () => Number.isFinite(el.duration) && set({ duration: el.duration }));
+  on("timeupdate", () => {
+    const now = el.currentTime;
+    set({ time: now });
+    updateBuffered(el);
+    // Save at most every 5 seconds.
+    if (state.track && Math.abs(now - lastSaved) >= 5) {
+      lastSaved = now;
+      writePosition(state.track.id, now);
+    }
+  });
+  on("progress", () => updateBuffered(el));
+  on("play", () => {
+    set({ playing: true });
+    if (state.resumedAt !== null) showResumed(null);
+  });
+  on("pause", () => {
+    set({ playing: false });
+    if (state.track) writePosition(state.track.id, el.currentTime);
+  });
+  on("waiting", () => {
+    set({ buffering: true });
+    // Stuck waiting for data while meant to be playing: treat it as a failure.
+    clearTimeout(stallTimer);
+    stallTimer = setTimeout(() => !el.paused && state.buffering && fail(el), STALL_MS);
+  });
+  on("seeking", () => set({ buffering: true }));
+  on("playing", () => {
+    set({ buffering: false });
+    // Playing again: the next failure starts a fresh round of retries.
+    resetRetries();
+  });
+  on("canplay", () => {
+    set({ buffering: false });
+    clearTimeout(stallTimer);
+  });
+  on("seeked", () => {
+    set({ buffering: false });
+    updateBuffered(el);
+  });
+  on("error", () => {
+    // ABORTED: the source was changed or removed on purpose (a new recording, or Stop).
+    if (el.error?.code === MediaError.MEDIA_ERR_ABORTED) return;
+    fail(el);
+  });
+  on("ended", () => {
+    set({ playing: false });
+    const track = state.track;
+    if (!track) return;
+    writePosition(track.id, 0);
+    track.onEnded?.();
+  });
+
   return el;
 }
 
 export const player = {
   /** Plays `track`: resumes it if it's the current one, otherwise switches to it (from its saved position). */
   play(track: Track) {
-    const el = element();
+    const current = element();
     if (state.track?.id === track.id) {
       // Same recording: keep its newest details (e.g. the language of its labels) and resume.
       set({ track });
       if (state.status === "error") player.retry();
-      else void el.play().catch(() => {});
+      else void current.play().catch(() => {});
       return;
     }
-    if (state.track && !el.paused) writePosition(state.track.id, el.currentTime);
-    el.pause();
+    if (state.track && !current.paused) writePosition(state.track.id, current.currentTime);
+    let el = current;
+    const prepared = standby?.id === track.id && !standby.el.error ? standby.el : null;
+    if (prepared) {
+      // Already loading in the background: it takes over from the current element.
+      standby = null;
+      audio = el = prepared;
+      release(current);
+      el.volume = state.volume;
+      el.muted = state.muted;
+    } else {
+      el.pause();
+      // Its background load failed: load it afresh as the current element.
+      if (standby?.id === track.id) player.unprepare(track.id);
+    }
     restored = false;
     lastSaved = 0;
     resetRetries();
     autoplay = true;
     showResumed(null);
     set({ track, status: "loading", playing: false, buffering: false, time: 0, buffered: 0, duration: track.duration ?? 0, reconnecting: 0 });
-    el.src = track.src;
-    el.load();
+    if (!prepared) {
+      el.src = track.src;
+      el.load();
+    } else if (el.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      // Its loadedmetadata has been and gone: start it now, inside the listener's tap (iOS needs that).
+      onMetadata(el);
+      updateBuffered(el);
+    }
     if ("mediaSession" in navigator && typeof MediaMetadata !== "undefined") {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.book.title.ar,
@@ -427,6 +469,34 @@ export const player = {
   /** That page's player went away (unless another page has already taken its place). */
   leaveScreen(id: string) {
     if (state.onScreen === id) set({ onScreen: null });
+  },
+  /**
+   * Starts loading `track` out of sight (the page showing its player has opened), so pressing play
+   * starts it at once. Nothing changes on screen until then.
+   */
+  prepare(track: Track) {
+    if (state.track?.id === track.id || standby?.id === track.id) return;
+    if (standby) release(standby.el);
+    const el = createElement();
+    // Buffer ahead, unless another recording is playing and needs the bandwidth.
+    el.preload = state.playing ? "metadata" : "auto";
+    // Sit at the saved position, so that's the part that gets buffered.
+    el.addEventListener(
+      "loadedmetadata",
+      () => {
+        const at = readPosition(track.id);
+        if (el !== audio && at && at < el.duration - 5) el.currentTime = at;
+      },
+      { once: true },
+    );
+    el.src = track.src;
+    standby = { id: track.id, el };
+  },
+  /** That page closed before its recording was played: stop loading it. */
+  unprepare(id: string) {
+    if (standby?.id !== id) return;
+    release(standby.el);
+    standby = null;
   },
 };
 
