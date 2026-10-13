@@ -269,7 +269,7 @@ export default function Watch({ loaderData }: Route.ComponentProps) {
         </aside>
 
         <section dir={uiDir} aria-label={t("reader.tab")} className="min-w-0">
-          <BookReader bookId={book.id} text={text} content={loaderData.content} fill />
+          <BookReader bookId={book.id} text={text} content={loaderData.content} fill tour />
         </section>
         <div dir={uiDir} className="min-w-0 lg:hidden">
           {sideTabs}

@@ -35,20 +35,23 @@ function writePage(bookId: string, page: number) {
  * The book's text beside its lessons. When the matn has been typed out it opens in the app's own
  * reading style (BookText), with the original PDF a tap away; otherwise it shows the PDF. Both
  * views share the page, so switching keeps the listener's place, and it's remembered per book. On
- * arriving it opens at the book's bookmark, if the listener has placed one. The first time the text
- * comes into view, a short tour shows how to take notes on it and bookmark it.
+ * arriving it opens at the book's bookmark, if the listener has placed one. With `tour`, the first
+ * time the text comes into view a short tour shows how to take notes on it and bookmark it.
  */
 export function BookReader({
   bookId,
   text,
   content,
   fill = false,
+  tour: withTour = false,
 }: {
   bookId: string;
   text: BookPdf;
   content?: BookContent;
   /** Let the text fill the height of the window (the lesson page's side-by-side view). */
   fill?: boolean;
+  /** Offer the notes-and-bookmark tour (the lesson page's side-by-side view only). */
+  tour?: boolean;
 }) {
   const { l, t } = useLocalize();
   const [view, setView] = useState<View>(content ? "text" : "pdf");
@@ -61,7 +64,7 @@ export function BookReader({
   const [landing, setLanding] = useState(true);
   const box = useRef<HTMLDivElement>(null);
   const [seen, setSeen] = useState(false);
-  const textShown = !!content && view === "text" && saved !== null;
+  const textShown = withTour && !!content && view === "text" && saved !== null;
   const tour = useTour("text", textShown && seen);
   const tourSteps: TourStep[] = [
     { target: "text", title: t("tour.noteTitle"), body: t("tour.note") },
@@ -71,14 +74,14 @@ export function BookReader({
     { target: "lesson-notes", title: t("tour.lessonNotesTitle"), body: t("tour.lessonNotes") },
   ];
 
-  // The tour waits until the text is on screen (on a book's page it sits below the lessons).
+  // The tour waits until the text is on screen (on a phone it sits below the player).
   useEffect(() => {
     const el = box.current;
-    if (!el || seen) return;
+    if (!withTour || !el || seen) return;
     const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && setSeen(true), { threshold: 0.25 });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [seen]);
+  }, [withTour, seen]);
 
   useEffect(() => setPage(Math.min(bookmarks.get(bookId)?.page ?? readPage(bookId), total)), [bookId, total]);
   useEffect(() => {
@@ -126,7 +129,7 @@ export function BookReader({
               </button>
             ))}
           </div>
-          {view === "text" && <TourButton onClick={tour.start} />}
+          {withTour && view === "text" && <TourButton onClick={tour.start} />}
         </div>
       )}
 
