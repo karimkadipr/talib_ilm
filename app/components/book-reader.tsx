@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BookText } from "~/components/book-text";
 import type { BookContent } from "~/data/book-content";
 import type { BookText as BookPdf } from "~/data/book-texts";
+import { bookmarks } from "~/lib/book-bookmark";
 import { useLocalize } from "~/lib/localize";
 
 const PAGE_KEY = (bookId: string) => `islamic-studies:reader:${bookId}`;
@@ -32,7 +33,8 @@ function writePage(bookId: string, page: number) {
 /**
  * The book's text beside its lessons. When the matn has been typed out it opens in the app's own
  * reading style (BookText), with the original PDF a tap away; otherwise it shows the PDF. Both
- * views share the page, so switching keeps the listener's place, and it's remembered per book.
+ * views share the page, so switching keeps the listener's place, and it's remembered per book. On
+ * arriving it opens at the book's bookmark, if the listener has placed one.
  */
 export function BookReader({
   bookId,
@@ -53,8 +55,10 @@ export function BookReader({
   const [saved, setPage] = useState<number | null>(null);
   const page = saved ?? 1;
   const total = content?.pages ?? text.pages;
+  // Until the listener switches views: the text opens at the bookmark rather than where they left off.
+  const [landing, setLanding] = useState(true);
 
-  useEffect(() => setPage(Math.min(readPage(bookId), total)), [bookId, total]);
+  useEffect(() => setPage(Math.min(bookmarks.get(bookId)?.page ?? readPage(bookId), total)), [bookId, total]);
   useEffect(() => {
     if (!content) return;
     try {
@@ -73,6 +77,7 @@ export function BookReader({
 
   function choose(next: View) {
     setView(next);
+    setLanding(false);
     try {
       localStorage.setItem(VIEW_KEY, next);
     } catch {}
@@ -104,7 +109,7 @@ export function BookReader({
         saved === null ? (
           <div className="h-[70vh] max-h-96 rounded-2xl border bg-card" />
         ) : (
-          <BookText bookId={bookId} content={content} page={page} onPage={go} fill={fill} />
+          <BookText bookId={bookId} content={content} page={page} onPage={go} fill={fill} landing={landing} />
         )
       ) : (
         <PdfView text={text} page={page} go={go} />

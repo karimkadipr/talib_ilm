@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { AArrowDown, AArrowUp, ListTree } from "lucide-react";
+import { AArrowDown, AArrowUp, Bookmark, BookmarkPlus, BookmarkX, ListTree } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
   DropdownMenu,
@@ -9,6 +9,7 @@ import {
 } from "~/components/ui/dropdown-menu";
 import type { Block, BookContent, Inline } from "~/data/book-content";
 import { useTextNotes } from "~/components/text-notes";
+import { bookmarks, useBookmark } from "~/lib/book-bookmark";
 import { useLocalize } from "~/lib/localize";
 
 const SIZES = ["1.125rem", "1.25rem", "1.375rem", "1.5rem", "1.75rem"];
@@ -54,6 +55,7 @@ export function BookText({
   page,
   onPage,
   fill = false,
+  landing = false,
 }: {
   bookId: string;
   content: BookContent;
@@ -62,6 +64,8 @@ export function BookText({
   onPage: (page: number) => void;
   /** Fill the window's height (beside the player) rather than a box within the page. */
   fill?: boolean;
+  /** The listener has just come to the page: open at the bookmark, if there is one. */
+  landing?: boolean;
 }) {
   const { t, num } = useLocalize();
   const box = useRef<HTMLDivElement>(null);
@@ -69,6 +73,7 @@ export function BookText({
   const article = useRef<HTMLElement>(null);
   const [size, setSize] = useState(1);
   const [current, setCurrent] = useState({ page, section: "" });
+  const mark = useBookmark(bookId);
   // Latest callback without re-subscribing the scroll listener on every render.
   const report = useRef(onPage);
   report.current = onPage;
@@ -76,13 +81,33 @@ export function BookText({
   useEffect(() => setSize(readSize()), []);
   const notes = useTextNotes({ bookId, content, wrap, box, article, layoutKey: size });
 
-  // Open where the listener left off, or at the page the PDF view was on.
+  // Open at the bookmark when arriving, else where the listener left off, or at the page the PDF
+  // view was on.
   useEffect(() => {
     const el = box.current;
     if (!el) return;
     const spot = readSpot(bookId);
-    if (spot && spot.page === page) el.scrollTop = spot.top;
-    else scrollBoxTo(el, el.querySelector<HTMLElement>(`[data-page-start="${page}"]`), "auto");
+    const saved = landing ? bookmarks.get(bookId) : null;
+    if (!saved) {
+      if (spot && spot.page === page) el.scrollTop = spot.top;
+      else scrollBoxTo(el, el.querySelector<HTMLElement>(`[data-page-start="${page}"]`), "auto");
+      return;
+    }
+    // Keep the bookmarked paragraph at the top while the text settles (the page's layout, the fonts),
+    // until the listener takes over.
+    const hold = () => scrollBoxTo(el, el.querySelector<HTMLElement>(`[data-block="${saved.b}"]`), "auto");
+    hold();
+    const observer = new ResizeObserver(hold);
+    if (article.current) observer.observe(article.current);
+    const inputs = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
+    const release = () => {
+      observer.disconnect();
+      clearTimeout(timer);
+      for (const type of inputs) window.removeEventListener(type, release, true);
+    };
+    const timer = setTimeout(release, 4000);
+    for (const type of inputs) window.addEventListener(type, release, { capture: true, passive: true });
+    return release;
     // Only on opening; afterwards the scroll position leads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
@@ -128,11 +153,24 @@ export function BookText({
     } catch {}
   }
 
-  function jump(id: string) {
+  function jump(selector: string) {
     const el = box.current;
     if (!el) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    scrollBoxTo(el, el.querySelector<HTMLElement>(`[data-section="${id}"]`), reduce ? "auto" : "smooth");
+    scrollBoxTo(el, el.querySelector<HTMLElement>(selector), reduce ? "auto" : "smooth");
+  }
+
+  /** Bookmarks the paragraph at the top of the view (moving the book's one bookmark there). */
+  function placeBookmark() {
+    const el = box.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + 24;
+    const target = [...el.querySelectorAll<HTMLElement>("[data-block]")].find((b) => b.getBoundingClientRect().bottom > top);
+    if (!target) return;
+    const b = Number(target.dataset.block);
+    const block = content.blocks[b];
+    const quote = (target.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+    bookmarks.set(bookId, { b, page: block && block.type !== "page" ? block.page : current.page, quote });
   }
 
   const sectionTitle = content.sections.find((s) => s.id === current.section)?.text;
@@ -167,7 +205,7 @@ export function BookText({
               {content.sections.map((s) => (
                 <DropdownMenuItem
                   key={s.id}
-                  onSelect={() => jump(s.id)}
+                  onSelect={() => jump(`[data-section="${s.id}"]`)}
                   className={cn(
                     "justify-between gap-6 rounded-lg px-3 py-2",
                     s.level === 2 && "ps-7 text-muted-foreground",
@@ -186,6 +224,39 @@ export function BookText({
         <span className="ms-auto text-xs whitespace-nowrap text-muted-foreground tabular-nums">
           {t("reader.page", { n: num(current.page), total: num(content.pages) })}
         </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className={cn(tool, "outline-none focus-visible:ring-2 focus-visible:ring-ring/50", mark && "tint-fg")}
+            aria-label={t("reader.bookmark")}
+            title={t("reader.bookmark")}
+          >
+            <Bookmark className={cn("size-4", mark && "fill-current")} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()} className="w-72 rounded-xl p-1.5">
+            {mark && (
+              <DropdownMenuItem onSelect={() => jump(`[data-block="${mark.b}"]`)} className="flex-col items-stretch gap-1 rounded-lg px-3 py-2">
+                <span className="text-xs text-muted-foreground">{t("reader.goToBookmark")}</span>
+                <span className="flex items-baseline justify-between gap-3">
+                  <span lang="ar" dir="rtl" className="font-arabic line-clamp-1 flex-1 text-base text-foreground">
+                    {mark.quote}
+                  </span>
+                  <span className="text-xs text-muted-foreground tabular-nums">{num(mark.page)}</span>
+                </span>
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onSelect={placeBookmark} className="rounded-lg px-3 py-2">
+              <BookmarkPlus />
+              {mark ? t("reader.moveBookmark") : t("reader.addBookmark")}
+            </DropdownMenuItem>
+            {mark && (
+              <DropdownMenuItem variant="destructive" onSelect={() => bookmarks.remove(bookId)} className="rounded-lg px-3 py-2">
+                <BookmarkX />
+                {t("reader.removeBookmark")}
+              </DropdownMenuItem>
+            )}
+            <p className="px-3 pt-1 pb-1.5 text-xs text-muted-foreground">{t("reader.bookmarkHint")}</p>
+          </DropdownMenuContent>
+        </DropdownMenu>
         {notes.menu}
         <div className="flex items-center">
           <button type="button" onClick={() => resize(-1)} disabled={size === 0} aria-label={t("reader.smaller")} title={t("reader.smaller")} className={tool}>
@@ -220,7 +291,7 @@ export function BookText({
           className="font-adhkar mx-auto max-w-[38em] leading-[2.1] text-foreground/95"
         >
           {content.blocks.map((block, i) => (
-            <BlockView key={i} block={block} index={i} />
+            <BlockView key={i} block={block} index={i} marked={mark?.b === i} />
           ))}
         </article>
       </div>
@@ -229,10 +300,13 @@ export function BookText({
   );
 }
 
-/** One block of the text; `data-block` (its index) anchors notes on it. */
-function BlockView({ block, index }: { block: Block; index: number }) {
+/**
+ * One block of the text; `data-block` (its index) anchors notes and the bookmark on it. The bookmark's
+ * ribbon is drawn by CSS (app.css), so the block's text, which notes count characters in, is untouched.
+ */
+function BlockView({ block, index, marked }: { block: Block; index: number; marked: boolean }) {
   const { t, num } = useLocalize();
-  const at = { "data-block": index };
+  const at = { "data-block": index, "data-bookmarked": marked || undefined };
   switch (block.type) {
     case "page":
       // The PDF's page boundary: a hairline with its number, so the two views line up.

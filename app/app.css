@@ -260,3 +260,19 @@ body [dir="rtl"][lang="ar"] {
 ::highlight(book-note-active) {
   background-color: color-mix(in oklab, var(--gold) 50%, transparent);
 }
+
+/* The listener's bookmark in a book's text: a ribbon in the margin beside its paragraph (set by
+   ~/components/book-text; drawn here so the paragraph's text stays as it is). */
+[data-bookmarked] {
+  position: relative;
+}
+[data-bookmarked]::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -1.1rem;
+  top: 0.55em;
+  width: 0.625rem;
+  height: 0.9rem;
+  background-color: oklch(0.78 0.12 var(--hue, 163));
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+}
