@@ -1,5 +1,5 @@
 import { href } from "react-router";
-import { type Reciter, surahAudioUrl } from "~/data/reciters";
+import { type Reciter, surahAudioUrl, surahFallbackUrl } from "~/data/reciters";
 import { surahs } from "~/data/surahs";
 import { useLocalize } from "~/lib/localize";
 import { player, type Track } from "~/lib/player";
@@ -36,6 +36,7 @@ export function useSurahTrack() {
     return {
       id: surahTrackId(reciter.id, n),
       src: surahAudioUrl(reciter, n),
+      fallback: surahFallbackUrl(reciter, n),
       book: { id: `surah-${n}`, title: { ar: `سورة ${surah.name}`, en: surah.translit }, author: reciter.name },
       hue: reciter.hue,
       artist: l(reciter.name),

@@ -39,7 +39,7 @@ export const categories: Category[] = [
     name: L("الأذكار", "Adhkār", "Adhkār"),
     description: L(
       "أذكار الصباح والمساء من الكتاب والسنة، مع عدّاد لكل ذكر.",
-      "The morning and evening remembrance from the Qur'an and Sunnah, with a counter for each dhikr.",
+      "The morning and evening remembrance from the Qur'ān and Sunnah, with a counter for each dhikr.",
       "Les invocations du matin et du soir tirées du Coran et de la Sunna, avec un compteur pour chacune.",
     ),
     items: [

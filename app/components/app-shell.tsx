@@ -1,11 +1,12 @@
 import { cn } from "cn";
-import { AudioLines, BookOpen, CalendarDays, Flame, GraduationCap, Play, Sun } from "lucide-react";
+import { AudioLines, BookOpen, CalendarDays, Flame, GraduationCap, Play, Settings, Sun } from "lucide-react";
 import { href, Link, NavLink, useLocation, useNavigation } from "react-router";
 import { DuaHandsIcon } from "~/components/dua-hands-icon";
 import { LanguageSwitcher } from "~/components/language-switcher";
 import { LogoMark } from "~/components/logo";
 import { MiniPlayer } from "~/components/mini-player";
-import { ProgrammeToggle } from "~/components/programme-toggle";
+import { SettingsButton, SettingsDialog } from "~/components/settings-dialog";
+import { Button } from "~/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "~/components/ui/dropdown-menu";
 import { categories, itemInfo } from "~/data/categories";
 import { useLocalize } from "~/lib/localize";
@@ -81,9 +82,8 @@ function Sidebar() {
         ))}
       </nav>
 
-      <div className="m-3 space-y-3 rounded-xl border bg-card/60 p-3">
-        <ProgrammeToggle hint={false} />
-        <p className="text-xs text-muted-foreground">{t("shell.storageNotice")}</p>
+      <div className="flex justify-end border-t p-3">
+        <SettingsButton />
       </div>
     </aside>
   );
@@ -205,6 +205,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="ms-auto flex items-center gap-2">
             <StreakPill />
             <LanguageSwitcher />
+            {/* Phones have no sidebar, so settings sit up here. */}
+            <SettingsDialog
+              trigger={
+                <Button variant="ghost" size="icon" aria-label={t("settings.title")} className="lg:hidden">
+                  <Settings className="size-4" />
+                </Button>
+              }
+            />
           </div>
         </header>
         <main

@@ -1,5 +1,6 @@
-// Qur'an reciters. Each one's complete recitation is hosted as one archive.org item with the
-// surahs named by number: 001.mp3 … 114.mp3.
+// Qur'an reciters. Each one's complete recitation streams from MP3 Quran's CDN (which allows using
+// its links directly), with our own copy of the same files on archive.org as the fallback. Both name
+// the surahs by number: 001.mp3 … 114.mp3.
 
 import type { Localized } from "./curriculum";
 
@@ -8,7 +9,9 @@ export type Reciter = {
   name: Localized;
   hue: number;
   riwayah: Localized;
-  /** archive.org item holding 001.mp3 … 114.mp3. */
+  /** MP3 Quran folder holding 001.mp3 … 114.mp3 (the moshaf's `server` in their API). */
+  server: string;
+  /** archive.org item with the same files, played if MP3 Quran's don't load. */
   item: string;
   /** Length of each surah's recording in seconds, surah 1 first. */
   seconds: number[];
@@ -33,6 +36,7 @@ export const reciters: Reciter[] = [
     name: { ar: "بدر التركي", en: "Badr al-Turkī", fr: "Badr al-Turkī" },
     hue: 190,
     riwayah: hafs,
+    server: "https://cdn.mp3quran.net/audio/badr-turki/r1/",
     item: "quran-badr-al-turki-hafs",
     // prettier-ignore
     seconds: [
@@ -51,6 +55,7 @@ export const reciters: Reciter[] = [
     name: { ar: "ياسر الدوسري", en: "Yāsir al-Dawsarī", fr: "Yāsir al-Dawsarī" },
     hue: 35,
     riwayah: hafs,
+    server: "https://cdn.mp3quran.net/audio/yasser-dosari/r1/",
     item: "quran-yasser-al-dosari-hafs",
     // prettier-ignore
     seconds: [
@@ -69,6 +74,7 @@ export const reciters: Reciter[] = [
     name: { ar: "سعد الغامدي", en: "Saʿd al-Ghāmidī", fr: "Saʿd al-Ghāmidī" },
     hue: 145,
     riwayah: hafs,
+    server: "https://cdn.mp3quran.net/audio/saad-ghamdi/r1/",
     item: "quran-saad-al-ghamdi-hafs",
     // prettier-ignore
     seconds: [
@@ -87,6 +93,7 @@ export const reciters: Reciter[] = [
     name: { ar: "مشاري راشد العفاسي", en: "Mishārī Rāshid al-ʿAfāsī", fr: "Mishārī Rāshid al-ʿAfāsī" },
     hue: 330,
     riwayah: hafs,
+    server: "https://cdn.mp3quran.net/audio/mishary-alafasy/r1/",
     item: "quran-mishary-alafasy-hafs",
     // prettier-ignore
     seconds: [
@@ -105,6 +112,7 @@ export const reciters: Reciter[] = [
     name: { ar: "محمد صديق المنشاوي", en: "Muḥammad Ṣiddīq al-Minshāwī", fr: "Muḥammad Ṣiddīq al-Minshāwī" },
     hue: 285,
     riwayah: hafs,
+    server: "https://cdn.mp3quran.net/audio/muhammad-minshawi/r1/",
     item: "quran-muhammad-siddiq-al-minshawi-hafs",
     // prettier-ignore
     seconds: [
@@ -124,6 +132,14 @@ export function getReciter(id: string) {
   return reciters.find((r) => r.id === id);
 }
 
+const surahFile = (n: number) => `${String(n).padStart(3, "0")}.mp3`;
+
+/** A surah on MP3 Quran's CDN, the address the player tries first. */
 export function surahAudioUrl(reciter: Reciter, n: number) {
-  return `https://archive.org/download/${reciter.item}/${String(n).padStart(3, "0")}.mp3`;
+  return reciter.server + surahFile(n);
+}
+
+/** The same surah in our archive.org copy, played when MP3 Quran's doesn't load. */
+export function surahFallbackUrl(reciter: Reciter, n: number) {
+  return `https://archive.org/download/${reciter.item}/${surahFile(n)}`;
 }

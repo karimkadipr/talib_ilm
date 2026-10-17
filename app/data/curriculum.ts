@@ -74,7 +74,7 @@ const level = (
 
 // Authors that recur across subjects.
 const A = {
-  ibnAbdilwahhab: ["محمد بن عبد الوهاب", "Muhammad ibn ʿAbd al-Wahhāb"],
+  ibnAbdilwahhab: ["محمد بن عبد الوهاب", "Muḥammad ibn ʿAbd al-Wahhāb"],
   uthaymin: ["محمد بن صالح ابن عثيمين", "Muḥammad ibn al-ʿUthaymīn"],
   fawzan: ["صالح الفوزان", "Ṣāliḥ al-Fawzān"],
   saadi: ["عبد الرحمن السعدي", "ʿAbd al-Raḥmān al-Saʿdī"],
@@ -701,7 +701,7 @@ const sirah: Subject = {
       entry(
         book("shamail", ["الشمائل المحمدية", "al-Shamāʾil al-Muḥammadiyyah"], ["الترمذي", "al-Tirmidhī"], [
           "مع مختصره للشيخ الألباني",
-          "With al-Albānī's abridgement",
+          "With al-Albānī's abridgment",
         ]),
         book("anwar-shamail", ["الأنوار في شمائل النبي المختار", "al-Anwār fī Shamāʾil al-Nabī"], ["البغوي", "al-Baghawī"]),
       ),
@@ -849,12 +849,12 @@ export const subjects: Subject[] = [
   tafsir,
   fiqh,
   usulFiqh,
-  openProgramme,
   hadith,
   mustalah,
   sirah,
   tajweed,
   nahw,
+  openProgramme,
 ];
 
 /** Week starts on Saturday, as in the source. */
@@ -890,7 +890,7 @@ export const dailyProgramme = [
   },
   {
     id: "hifz",
-    title: L("حفظ خمسة أسطر على الأقل", "Memorise at least five lines", "Mémoriser au moins cinq lignes"),
+    title: L("حفظ خمسة أسطر على الأقل", "Memorize at least five lines", "Mémoriser au moins cinq lignes"),
     detail: L(
       "ويجب أن يشتمل السطر الأخير على رأس آية",
       "The last line should end on the end of a verse",
