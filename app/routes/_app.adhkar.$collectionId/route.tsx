@@ -10,12 +10,14 @@ import {
   ListRestart,
   Moon,
   RotateCcw,
+  ScrollText,
   Sun,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { data } from "react-router";
 import { AdhkarGuide, type GuideStep, TapHint } from "~/components/adhkar-guide";
 import { BackLink } from "~/components/back-link";
+import { DhikrGrading } from "~/components/dhikr-grading";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +69,9 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
   const [guide, setGuide] = useState<{ step: GuideStep; i: number } | null>(null);
   const latest = useRef({ done, order });
   latest.current = { done, order };
+
+  // The dhikr whose source and grading are open; kept while the dialog closes so it can animate out.
+  const [source, setSource] = useState<{ i: number; open: boolean } | null>(null);
 
   const startGuide = useCallback(() => {
     const { done, order } = latest.current;
@@ -275,6 +280,17 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
                   </span>
                 )}
                 <div className="-me-2 flex items-center">
+                  {d.grading && (
+                    <button
+                      type="button"
+                      onClick={() => setSource({ i, open: true })}
+                      aria-label={t("grading.open")}
+                      title={t("grading.open")}
+                      className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    >
+                      <ScrollText className="size-4" />
+                    </button>
+                  )}
                   {count > 0 && (
                     <button
                       type="button"
@@ -343,6 +359,12 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
           </a>
         </span>
       </p>
+
+      <DhikrGrading
+        grading={source ? adhkar[source.i].grading : null}
+        open={!!source?.open}
+        onOpenChange={(open) => setSource((s) => s && { ...s, open })}
+      />
 
       {guide && (
         <AdhkarGuide

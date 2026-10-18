@@ -7,18 +7,21 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useRouteLoaderData,
 } from "react-router";
 
 import type { Route } from "./+types/root";
 import "./app.css";
+import { Analytics } from "~/components/analytics";
 import { getLanguageOrFallback } from "~/lib/i18n.constants";
 import { pageMeta } from "~/lib/meta";
 import { seo } from "~/lib/meta.server";
 import { getLocale, i18nextMiddleware } from "~/middleware/i18next";
+import { langParamMiddleware } from "~/middleware/lang-param";
 import { getPreferences } from "~/services/cookies/preferences.cookie.server";
 
-// Registers the remix-i18next server middleware (locale detection).
-export const middleware: Route.MiddlewareFunction[] = [i18nextMiddleware];
+// `?lang=` first-visit handling, then the remix-i18next server middleware (locale detection).
+export const middleware: Route.MiddlewareFunction[] = [langParamMiddleware, i18nextMiddleware];
 
 // Default namespace loaded for the root route.
 export const handle = { i18n: "common" };
@@ -26,7 +29,19 @@ export const handle = { i18n: "common" };
 export async function loader({ context, request }: Route.LoaderArgs) {
   const { programme, sideBySide } = await getPreferences(request);
   // Pages set their own meta; this is the fallback (e.g. for error pages).
-  return { locale: getLanguageOrFallback(getLocale(context)), programme, sideBySide, meta: seo(context, []) };
+  return {
+    locale: getLanguageOrFallback(getLocale(context)),
+    programme,
+    sideBySide,
+    meta: seo(context, []),
+    analyticsId: analyticsId(),
+  };
+}
+
+/** The Google Analytics 4 measurement id ("G-…") from the environment; analytics stay off without one. */
+function analyticsId() {
+  const id = process.env.GA_MEASUREMENT_ID?.trim();
+  return id && /^G-[A-Z0-9]+$/.test(id) ? id : null;
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -52,6 +67,7 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { i18n } = useTranslation();
+  const root = useRouteLoaderData("root") as { analyticsId?: string | null } | undefined;
   return (
     // Dark-only app.
     <html lang={i18n.language} dir={i18n.dir(i18n.language)} className="dark">
@@ -61,6 +77,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="theme-color" content="#0b0f0e" />
         <Meta />
         <Links />
+        <Analytics id={root?.analyticsId ?? null} />
       </head>
       <body>
         {children}

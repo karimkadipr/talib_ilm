@@ -11,6 +11,20 @@ export type Dhikr = {
   virtue: string | null;
   /** How many times to say it. */
   count: number;
+  /** Where it comes from and how the scholars graded it, shown on request. */
+  grading: Grading | null;
+};
+
+/** The hadith behind a dhikr and the scholars' rulings on it (adhkar-gradings.server.ts). */
+export type Grading = {
+  /** sahih: ṣaḥīḥ or ḥasan without notable dispute; disputed: major scholars differ; daif: not established. */
+  verdict: "sahih" | "disputed" | "daif";
+  /** The source and the main rulings in one Arabic line, as the scholars write a takhrīj. */
+  takhrij: string;
+  reason: Localized;
+  rulings: { who: Localized; ruling: Localized }[];
+  /** Where the count, timing or virtue shown differs from the hadith. */
+  notes?: Localized[];
 };
 
 export type AdhkarCollection = {
