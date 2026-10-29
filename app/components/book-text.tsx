@@ -1,6 +1,6 @@
 import { cn } from "cn";
-import { AArrowDown, AArrowUp, Bookmark, BookmarkPlus, BookmarkX, ListTree } from "lucide-react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { AArrowDown, AArrowUp, Bookmark, BookmarkPlus, Check, ListTree } from "lucide-react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,8 +9,9 @@ import {
 } from "~/components/ui/dropdown-menu";
 import type { Block, BookContent, Inline } from "~/data/book-content";
 import { useTextNotes } from "~/components/text-notes";
-import { bookmarks, useBookmark } from "~/lib/book-bookmark";
+import { type Bookmark as Mark, bookmarks, useBookmark } from "~/lib/book-bookmark";
 import { useLocalize } from "~/lib/localize";
+import { blockOf, caretAt, domPoint, offsetIn } from "~/lib/text-points";
 
 const SIZES = ["1.125rem", "1.25rem", "1.375rem", "1.5rem", "1.75rem"];
 const SIZE_KEY = "islamic-studies:reader:size";
@@ -44,17 +45,66 @@ function scrollBoxTo(box: HTMLElement, target: HTMLElement | null, behavior: Scr
   box.scrollTo({ top, behavior });
 }
 
-/** Briefly lights up a paragraph, so the listener sees where the bookmark is. */
-function glow(target: HTMLElement | null | undefined) {
-  if (!target?.animate) return;
-  const hue = getComputedStyle(target).getPropertyValue("--hue").trim() || "163";
-  const color = `oklch(0.78 0.12 ${hue} / 0.22)`;
-  target.animate(
-    [
-      { backgroundColor: color, boxShadow: `0 0 0 0.4em ${color}`, borderRadius: "0.4em" },
-      { backgroundColor: "transparent", boxShadow: "0 0 0 0.4em transparent", borderRadius: "0.4em" },
-    ],
-    { duration: 1800, easing: "ease-out" },
+/** A line of the text, in the article's coordinates (for the hover band, the ribbon and the glow). */
+type Line = { top: number; height: number };
+
+function lineHeightOf(el: HTMLElement) {
+  const s = getComputedStyle(el);
+  const n = parseFloat(s.lineHeight);
+  return s.lineHeight.endsWith("px") ? n : (Number.isFinite(n) ? n : 1.6) * parseFloat(s.fontSize);
+}
+
+/** The line through the character at (node, offset) of `block`. */
+function lineThrough(article: HTMLElement, block: HTMLElement, node: Node, offset: number): Line {
+  const r = document.createRange();
+  const len = node.nodeType === Node.TEXT_NODE ? (node.textContent?.length ?? 0) : 0;
+  if (offset < len) {
+    r.setStart(node, offset);
+    r.setEnd(node, offset + 1);
+  } else if (len > 0) {
+    r.setStart(node, len - 1);
+    r.setEnd(node, len);
+  } else r.selectNodeContents(block);
+  const rect = [...r.getClientRects()].find((x) => x.height > 0) ?? block.getBoundingClientRect();
+  const height = lineHeightOf(block);
+  return { top: rect.top + rect.height / 2 - height / 2 - article.getBoundingClientRect().top, height };
+}
+
+/** The line under a point on screen, and the character there that will anchor a bookmark. */
+function lineAt(article: HTMLElement, x: number, y: number): (Line & { b: number; o: number }) | null {
+  const at = caretAt(x, y);
+  const block = at && blockOf(at[0]);
+  if (!at || !block || !article.contains(block)) return null;
+  return { b: Number(block.dataset.block), o: offsetIn(block, ...at), ...lineThrough(article, block, ...at) };
+}
+
+/** The bookmarked line. */
+function lineOf(article: HTMLElement, mark: Pick<Mark, "b" | "o">): Line | null {
+  const at = domPoint(article, { b: mark.b, o: mark.o ?? 0 });
+  const block = article.querySelector<HTMLElement>(`[data-block="${mark.b}"]`);
+  return at && block ? lineThrough(article, block, ...at) : null;
+}
+
+/** The words at a character of a block: from the start of its word, about a line's worth. */
+function wordsAt(block: HTMLElement, o: number) {
+  const text = block.textContent ?? "";
+  let start = Math.min(o, text.length);
+  while (start > 0 && !/\s/.test(text[start - 1])) start--;
+  return text.slice(start, start + 100).replace(/\s+/g, " ").trim();
+}
+
+/** The ribbon in the margin beside a line: the bookmark, or a preview of where it would go. */
+function Ribbon({ line, ghost = false, drop = false }: { line: Line; ghost?: boolean; drop?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "tint-solid pointer-events-none absolute h-[1.05rem] w-3 [clip-path:polygon(0_0,100%_0,100%_100%,50%_72%,0_100%)]",
+        ghost && "opacity-45",
+        drop && "animate-ribbon-drop motion-reduce:animate-none",
+      )}
+      style={{ top: line.top + line.height / 2 - 9, insetInlineStart: "-1.2rem" }}
+    />
   );
 }
 
@@ -81,13 +131,21 @@ export function BookText({
   /** The listener has just come to the page: open at the bookmark, if there is one. */
   landing?: boolean;
 }) {
-  const { t, num } = useLocalize();
+  const { t, num, isAr } = useLocalize();
   const box = useRef<HTMLDivElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const article = useRef<HTMLElement>(null);
   const [size, setSize] = useState(1);
   const [current, setCurrent] = useState({ page, section: "" });
   const mark = useBookmark(bookId);
+  // Bookmarking: after the bookmark button, the next tap on a line bookmarks it (hover previews it).
+  const [placing, setPlacing] = useState(false);
+  const [hover, setHover] = useState<Line | null>(null);
+  const [ribbon, setRibbon] = useState<Line | null>(null);
+  // A line lit up for a moment (just bookmarked, or jumped to); the key restarts its animation.
+  const [flash, setFlash] = useState<(Line & { key: number }) | null>(null);
+  // "Bookmarked · page n", with the bookmark it replaced so Undo can put it back.
+  const [placed, setPlaced] = useState<{ page: number; prev: Mark | null } | null>(null);
   // Latest callback without re-subscribing the scroll listener on every render.
   const report = useRef(onPage);
   report.current = onPage;
@@ -107,13 +165,12 @@ export function BookText({
       else scrollBoxTo(el, el.querySelector<HTMLElement>(`[data-page-start="${page}"]`), "auto");
       return;
     }
-    // Keep the bookmarked paragraph at the top while the text settles (the page's layout, the fonts),
+    // Keep the bookmarked line near the top while the text settles (the page's layout, the fonts),
     // until the listener takes over.
-    const target = () => el.querySelector<HTMLElement>(`[data-block="${saved.b}"]`);
-    const hold = () => scrollBoxTo(el, target(), "auto");
+    const hold = () => scrollToLine(saved, "auto");
     hold();
     // Show the listener where they've landed.
-    const lit = setTimeout(() => glow(target()), 400);
+    const lit = setTimeout(() => lightUp(saved), 400);
     const observer = new ResizeObserver(hold);
     if (article.current) observer.observe(article.current);
     const inputs = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
@@ -183,29 +240,98 @@ export function BookText({
     return target;
   }
 
-  /**
-   * Bookmarks the paragraph at the top of the view (moving the book's one bookmark there): the first
-   * one that starts in the top half of the view, so its ribbon is on screen. Failing that (one long
-   * paragraph fills the view), the one running through the top, brought down so its start shows.
-   */
-  function placeBookmark() {
+  /** Scrolls the text so a bookmarked line sits a little below the top of the box. */
+  function scrollToLine(at: Pick<Mark, "b" | "o">, behavior: ScrollBehavior) {
     const el = box.current;
-    if (!el) return;
-    const top = el.getBoundingClientRect().top;
-    const blocks = [...el.querySelectorAll<HTMLElement>("[data-block]")];
-    const target =
-      blocks.find((b) => {
-        const at = b.getBoundingClientRect().top;
-        return at >= top - 2 && at < top + el.clientHeight / 2;
-      }) ?? blocks.find((b) => b.getBoundingClientRect().bottom > top + 24);
-    if (!target) return;
-    const b = Number(target.dataset.block);
-    const block = content.blocks[b];
-    const quote = (target.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
-    bookmarks.set(bookId, { b, page: block && block.type !== "page" ? block.page : current.page, quote });
-    if (target.getBoundingClientRect().top < top) jump(`[data-block="${b}"]`);
-    glow(target);
+    const art = article.current;
+    const line = art && lineOf(art, at);
+    if (!el || !art || !line) return;
+    const offset = art.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+    el.scrollTo({ top: offset + line.top - el.clientHeight * 0.2, behavior });
   }
+
+  /** Lights a line up for a moment, so the listener sees where the bookmark is. */
+  function lightUp(at: Pick<Mark, "b" | "o">) {
+    const line = article.current && lineOf(article.current, at);
+    if (line) setFlash({ ...line, key: Date.now() });
+  }
+
+  /** Bookmarks the line through character `o` of block `b` (moving the book's one bookmark there). */
+  function place(b: number, o: number) {
+    const block = article.current?.querySelector<HTMLElement>(`[data-block="${b}"]`);
+    const data = content.blocks[b];
+    if (!block || !data) return;
+    const prev = bookmarks.get(bookId);
+    const page = data.type !== "page" ? data.page : current.page;
+    bookmarks.set(bookId, { b, o, page, quote: wordsAt(block, o) });
+    setPlacing(false);
+    setHover(null);
+    setPlaced({ page, prev });
+    lightUp({ b, o });
+  }
+
+  /** Bookmarking from the keyboard: the first line at the top of the view. */
+  function placeAtTop() {
+    const el = box.current;
+    const art = article.current;
+    if (!el || !art) return;
+    const r = el.getBoundingClientRect();
+    const blocks = [...art.querySelectorAll<HTMLElement>("[data-block]")];
+    const first = blocks.find((b) => b.getBoundingClientRect().bottom > r.top + 24);
+    if (first) place(Number(first.dataset.block), 0);
+  }
+
+  function goToBookmark() {
+    if (!mark) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    scrollToLine(mark, reduce ? "auto" : "smooth");
+    lightUp(mark);
+  }
+
+  function undoPlace() {
+    if (placed?.prev) bookmarks.set(bookId, placed.prev);
+    else bookmarks.remove(bookId);
+    setPlaced(null);
+  }
+
+  // The ribbon follows its line as the text reflows (size, width, fonts).
+  const measureRibbon = useCallback(() => {
+    const art = article.current;
+    setRibbon(art && mark ? lineOf(art, mark) : null);
+  }, [mark]);
+  useLayoutEffect(() => {
+    measureRibbon();
+    const art = article.current;
+    if (!art) return;
+    const observer = new ResizeObserver(measureRibbon);
+    observer.observe(art);
+    document.fonts?.ready.then(measureRibbon);
+    return () => observer.disconnect();
+  }, [measureRibbon, size]);
+
+  // While bookmarking: Escape cancels, Enter takes the line at the top (for the keyboard).
+  useEffect(() => {
+    if (!placing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPlacing(false);
+      else if (e.key === "Enter" && !(e.target as HTMLElement).closest("input, textarea, button, [role=menuitem]")) {
+        e.preventDefault();
+        placeAtTop();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+  useEffect(() => {
+    if (!placing) setHover(null);
+  }, [placing]);
+
+  // The confirmation goes after a few seconds (long enough to reach Undo).
+  useEffect(() => {
+    if (!placed) return;
+    const id = setTimeout(() => setPlaced(null), 4500);
+    return () => clearTimeout(id);
+  }, [placed]);
 
   const sectionTitle = content.sections.find((s) => s.id === current.section)?.text;
   const tool =
@@ -258,40 +384,36 @@ export function BookText({
         <span className="ms-auto text-xs whitespace-nowrap text-muted-foreground tabular-nums">
           {t("reader.page", { n: num(current.page), total: num(content.pages) })}
         </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            data-tour="bookmark"
-            className={cn(tool, "outline-none focus-visible:ring-2 focus-visible:ring-ring/50", mark && "tint-fg")}
-            aria-label={t("reader.bookmark")}
-            title={t("reader.bookmark")}
-          >
-            <Bookmark className={cn("size-4", mark && "fill-current")} />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()} className="w-72 rounded-xl p-1.5">
-            {mark && (
-              <DropdownMenuItem onSelect={() => glow(jump(`[data-block="${mark.b}"]`))} className="flex-col items-stretch gap-1 rounded-lg px-3 py-2">
-                <span className="text-xs text-muted-foreground">{t("reader.goToBookmark")}</span>
-                <span className="flex items-baseline justify-between gap-3">
-                  <span lang="ar" dir="rtl" className="font-arabic line-clamp-1 flex-1 text-base text-foreground">
-                    {mark.quote}
-                  </span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{num(mark.page)}</span>
-                </span>
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onSelect={placeBookmark} className="rounded-lg px-3 py-2">
-              <BookmarkPlus />
-              {mark ? t("reader.moveBookmark") : t("reader.addBookmark")}
-            </DropdownMenuItem>
-            {mark && (
-              <DropdownMenuItem variant="destructive" onSelect={() => bookmarks.remove(bookId)} className="rounded-lg px-3 py-2">
-                <BookmarkX />
-                {t("reader.removeBookmark")}
-              </DropdownMenuItem>
-            )}
-            <p className="px-3 pt-1 pb-1.5 text-xs text-muted-foreground">{t("reader.bookmarkHint")}</p>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Bookmark a line: press, then tap the line. */}
+        <button
+          type="button"
+          data-tour="bookmark"
+          aria-pressed={placing}
+          onClick={() => {
+            setPlaced(null);
+            setPlacing((p) => !p);
+          }}
+          aria-label={t("reader.placeBookmark")}
+          title={t("reader.placeBookmark")}
+          className={cn(
+            tool,
+            "outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+            placing && "tint-bg tint-fg ring-1 ring-[oklch(0.78_0.12_var(--hue,163)/0.5)] hover:tint-bg",
+          )}
+        >
+          <BookmarkPlus className="size-4" />
+        </button>
+        {/* Back to the bookmark. */}
+        <button
+          type="button"
+          onClick={goToBookmark}
+          disabled={!mark}
+          aria-label={mark ? t("reader.goToBookmarkPage", { n: num(mark.page) }) : t("reader.noBookmark")}
+          title={mark ? `${t("reader.goToBookmarkPage", { n: num(mark.page) })}\n${mark.quote}` : t("reader.noBookmark")}
+          className={cn(tool, "outline-none focus-visible:ring-2 focus-visible:ring-ring/50", mark && "tint-fg")}
+        >
+          <Bookmark className={cn("size-4", mark && "fill-current")} />
+        </button>
         {notes.menu}
         <div className="flex items-center">
           <button type="button" onClick={() => resize(-1)} disabled={size === 0} aria-label={t("reader.smaller")} title={t("reader.smaller")} className={tool}>
@@ -323,26 +445,92 @@ export function BookText({
       >
         <article
           ref={article}
-          onClick={notes.onTextClick}
-          className="font-adhkar mx-auto max-w-[38em] leading-[2.1] text-foreground/95"
+          onClick={(e) => {
+            if (!placing) return notes.onTextClick(e);
+            const at = lineAt(e.currentTarget, e.clientX, e.clientY);
+            if (at) place(at.b, at.o);
+          }}
+          onMouseMove={(e) => placing && setHover(lineAt(e.currentTarget, e.clientX, e.clientY))}
+          onMouseLeave={() => setHover(null)}
+          className={cn(
+            // The bookmark's ribbon, the hover band and the glow sit under the text (isolate, -z-10).
+            "font-adhkar relative isolate mx-auto max-w-[38em] leading-[2.1] text-foreground/95",
+            placing && "cursor-pointer select-none",
+          )}
         >
+          {placing && hover && (
+            <>
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -inset-x-3 -z-10 rounded-lg bg-[oklch(0.78_0.12_var(--hue,163)/0.1)] ring-1 ring-[oklch(0.78_0.12_var(--hue,163)/0.35)]"
+                style={{ top: hover.top, height: hover.height }}
+              />
+              <Ribbon line={hover} ghost />
+            </>
+          )}
+          {flash && (
+            <span
+              key={flash.key}
+              aria-hidden
+              className="pointer-events-none absolute -inset-x-3 -z-10 animate-mark-flash rounded-lg motion-reduce:animate-none"
+              style={{ top: flash.top, height: flash.height }}
+            />
+          )}
+          {ribbon && mark && <Ribbon key={mark.created} line={ribbon} drop={!!placed} />}
           {content.blocks.map((block, i) => (
-            <BlockView key={i} block={block} index={i} marked={mark?.b === i} />
+            <BlockView key={i} block={block} index={i} />
           ))}
         </article>
       </div>
       {notes.overlay}
+
+      {/* While bookmarking: what to do; once placed: where it went, with Undo. */}
+      {(placing || placed) && (
+        <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex justify-center">
+          <div
+            dir={isAr ? "rtl" : "ltr"}
+            role="status"
+            className="tint-border pointer-events-auto flex max-w-full items-center gap-3 rounded-full border bg-popover/95 py-1.5 ps-4 pe-1.5 text-sm shadow-lg backdrop-blur duration-200 animate-in fade-in slide-in-from-bottom-2"
+          >
+            {placing ? (
+              <>
+                <BookmarkPlus className="tint-fg size-4 shrink-0" />
+                <span className="truncate">{t("reader.placeHint")}</span>
+                <button
+                  type="button"
+                  onClick={() => setPlacing(false)}
+                  className="shrink-0 rounded-full px-3 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  {t("reader.cancel")}
+                </button>
+              </>
+            ) : (
+              <>
+                <Check className="tint-fg size-4 shrink-0" />
+                <span className="truncate">{t("reader.bookmarked", { n: num(placed!.page) })}</span>
+                <button
+                  type="button"
+                  onClick={undoPlace}
+                  className="tint-fg shrink-0 rounded-full px-3 py-1 font-medium transition-colors hover:bg-accent"
+                >
+                  {t("reader.undo")}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 /**
  * One block of the text; `data-block` (its index) anchors notes and the bookmark on it. The bookmark's
- * ribbon is drawn by CSS (app.css), so the block's text, which notes count characters in, is untouched.
+ * ribbon is drawn beside it in the article, so the block's text, which notes count characters in, is untouched.
  */
-function BlockView({ block, index, marked }: { block: Block; index: number; marked: boolean }) {
+function BlockView({ block, index }: { block: Block; index: number }) {
   const { t, num } = useLocalize();
-  const at = { "data-block": index, "data-bookmarked": marked || undefined };
+  const at = { "data-block": index };
   switch (block.type) {
     case "page":
       // The PDF's page boundary: a hairline with its number, so the two views line up.

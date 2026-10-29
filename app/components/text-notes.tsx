@@ -10,6 +10,7 @@ import {
 import type { BookContent } from "~/data/book-content";
 import { type BookNote, bookNotes, overlapping, type TextPoint, useBookNotes } from "~/lib/book-notes";
 import { useLocalize } from "~/lib/localize";
+import { blockOf, caretAt, domPoint, offsetIn } from "~/lib/text-points";
 
 // Notes on passages of a book's text: select words, "Add note", write. Passages are painted with
 // the CSS Custom Highlight API (no change to the text's markup, so the Arabic shaping and layout stay
@@ -19,19 +20,6 @@ type Draft = { id?: string; start: TextPoint; end: TextPoint; quote: string; pag
 
 const HIGHLIGHT = "book-note";
 const HIGHLIGHT_ACTIVE = "book-note-active";
-
-function blockOf(node: Node): HTMLElement | null {
-  const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
-  return el?.closest<HTMLElement>("[data-block]") ?? null;
-}
-
-/** Characters from the start of `block` to (node, offset). */
-function offsetIn(block: HTMLElement, node: Node, offset: number) {
-  const r = document.createRange();
-  r.setStart(block, 0);
-  r.setEnd(node, offset);
-  return r.toString().length;
-}
 
 /** Where a selection edge falls, snapped into the nearest block it covers (e.g. from a page divider). */
 function edgePoint(article: HTMLElement, range: Range, edge: "start" | "end"): TextPoint | null {
@@ -45,22 +33,6 @@ function edgePoint(article: HTMLElement, range: Range, edge: "start" | "end"): T
   return { b: Number(snap.dataset.block), o: edge === "start" ? 0 : (snap.textContent ?? "").length };
 }
 
-/** The DOM position of a text point. */
-function domPoint(article: HTMLElement, p: TextPoint): [Node, number] | null {
-  const block = article.querySelector(`[data-block="${p.b}"]`);
-  if (!block) return null;
-  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-  let left = p.o;
-  let last: Node | null = null;
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-    const len = n.textContent?.length ?? 0;
-    if (left <= len) return [n, left];
-    left -= len;
-    last = n;
-  }
-  return last ? [last, last.textContent?.length ?? 0] : [block, 0];
-}
-
 function toRange(article: HTMLElement, note: { start: TextPoint; end: TextPoint }) {
   const a = domPoint(article, note.start);
   const b = domPoint(article, note.end);
@@ -69,15 +41,6 @@ function toRange(article: HTMLElement, note: { start: TextPoint; end: TextPoint 
   r.setStart(...a);
   r.setEnd(...b);
   return r;
-}
-
-/** The text position under a click, across browsers. */
-function caretAt(x: number, y: number): [Node, number] | null {
-  const doc = document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null };
-  const pos = doc.caretPositionFromPoint?.(x, y);
-  if (pos) return [pos.offsetNode, pos.offset];
-  const r = doc.caretRangeFromPoint?.(x, y);
-  return r ? [r.startContainer, r.startOffset] : null;
 }
 
 const canHighlight = () => typeof CSS !== "undefined" && "highlights" in CSS;
