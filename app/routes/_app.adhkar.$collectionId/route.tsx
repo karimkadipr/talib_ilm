@@ -73,6 +73,9 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
   // The dhikr whose source and grading are open; kept while the dialog closes so it can animate out.
   const [source, setSource] = useState<{ i: number; open: boolean } | null>(null);
 
+  // The latest tap's ripple: the card, where it was pressed, and a key that restarts the animation.
+  const [ripple, setRipple] = useState<{ i: number; x: number; y: number; size: number; key: number } | null>(null);
+
   const startGuide = useCallback(() => {
     const { done, order } = latest.current;
     const first = order.find((k) => done[k] < adhkar[k].count);
@@ -114,6 +117,8 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
     const d = adhkar[i];
     if (done[i] >= d.count) return;
     const now = adhkarProgress.tap(collection.id, i, d.count, adhkar.length);
+    // A short buzz per count, a double one when the dhikr is finished (where the device supports it).
+    navigator.vibrate?.(now >= d.count ? [20, 60, 20] : 12);
     if (now >= d.count) {
       // Bring the next unfinished dhikr (in the reader's order) into view.
       const next = order.slice(order.indexOf(i) + 1).find((k) => done[k] < adhkar[k].count) ?? -1;
@@ -227,15 +232,30 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
               {/* The whole text is the tap target, like a tasbih. */}
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
                   // Selecting text to copy it shouldn't count as a tap.
                   if (window.getSelection()?.toString()) return;
+                  const r = e.currentTarget.getBoundingClientRect();
+                  // Keyboard presses have no pointer position; ripple from the middle.
+                  const x = e.detail ? e.clientX - r.left : r.width / 2;
+                  const y = e.detail ? e.clientY - r.top : r.height / 2;
+                  // Big enough to reach the farthest corner.
+                  const size = 2 * Math.hypot(Math.max(x, r.width - x), Math.max(y, r.height - y));
+                  setRipple((p) => ({ i, x, y, size, key: (p?.key ?? 0) + 1 }));
                   tap(i);
                 }}
                 disabled={complete}
                 aria-label={complete ? t("adhkar.done") : t("adhkar.tap", { left: num(d.count - count) })}
-                className="block w-full cursor-pointer p-5 text-right transition-transform outline-none select-text focus-visible:bg-accent/40 active:scale-[0.99] disabled:cursor-default disabled:active:scale-100 sm:p-7"
+                className="relative isolate block w-full cursor-pointer overflow-hidden p-5 text-right transition-transform outline-none select-text focus-visible:bg-accent/40 active:scale-[0.985] disabled:cursor-default disabled:active:scale-100 sm:p-7"
               >
+                {ripple?.i === i && (
+                  <span
+                    key={ripple.key}
+                    aria-hidden
+                    className="pointer-events-none absolute -z-10 animate-ripple rounded-full bg-[oklch(0.78_0.12_var(--hue)/0.18)]"
+                    style={{ left: ripple.x, top: ripple.y, width: ripple.size, height: ripple.size }}
+                  />
+                )}
                 <span className="mb-3 block text-xs font-medium text-muted-foreground tabular-nums">
                   <span dir="ltr">
                     {num(pos + 1)} / {num(adhkar.length)}
@@ -265,7 +285,15 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
                 )}
               </button>
 
-              <div className="flex min-h-12 items-center justify-between gap-3 border-t bg-white/2 px-5 py-2 text-sm sm:px-7">
+              <div className="relative flex min-h-12 items-center justify-between gap-3 border-t bg-white/2 px-5 py-2 text-sm sm:px-7">
+                {/* Fills from the right (the page is right-to-left) with each count. */}
+                {d.count > 1 && (
+                  <span
+                    aria-hidden
+                    className="tint-solid absolute inset-x-0 -top-px h-0.5 origin-right transition-transform duration-300 ease-out"
+                    style={{ transform: `scaleX(${Math.min(count / d.count, 1)})` }}
+                  />
+                )}
                 {complete ? (
                   <span dir={uiDir} className="tint-fg inline-flex items-center gap-1.5 font-medium">
                     <Check className="size-4" />
@@ -275,7 +303,16 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
                   <span dir={uiDir} className="text-muted-foreground" aria-live="polite">
                     {t("adhkar.repeat", { count: d.count })}
                     {count > 0 && (
-                      <span className="tint-fg font-medium"> · {t("adhkar.left", { left: num(d.count - count) })}</span>
+                      <>
+                        {" · "}
+                        {/* Remounts on every count so it pops again. */}
+                        <span
+                          key={count}
+                          className="tint-fg inline-block animate-bump font-medium motion-reduce:animate-none"
+                        >
+                          {t("adhkar.left", { left: num(d.count - count) })}
+                        </span>
+                      </>
                     )}
                   </span>
                 )}

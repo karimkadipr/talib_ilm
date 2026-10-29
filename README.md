@@ -1,4 +1,4 @@
-# Islamic Studies
+# Al Sabeel (السبيل)
 
 React Router 8 (SSR) + Tailwind v4 / shadcn-ui, with i18n (en / fr / ar) set up
 the same way as `course-management-saas`.

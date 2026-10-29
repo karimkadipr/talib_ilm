@@ -1,4 +1,4 @@
-import { Download, FileWarning, Settings, Upload } from "lucide-react";
+import { Download, FileWarning, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "~/components/ui/dialog";
@@ -6,7 +6,7 @@ import { type Backup, downloadBackup, readBackup, restoreBackup, summarize } fro
 import { useLocalize } from "~/lib/localize";
 import { usePreferences } from "~/lib/preferences";
 
-/** Settings, opened from `trigger` (the sidebar's button, or the phone header's). */
+/** Settings, opened from `trigger` (the gear in the top bar). */
 export function SettingsDialog({ trigger }: { trigger: React.ReactNode }) {
   const { t } = useLocalize();
   const [open, setOpen] = useState(false);
@@ -25,26 +25,7 @@ export function SettingsDialog({ trigger }: { trigger: React.ReactNode }) {
   );
 }
 
-/** The sidebar's settings button. */
-export function SettingsButton() {
-  const { t } = useLocalize();
-  return (
-    <SettingsDialog
-      trigger={
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={t("settings.title")}
-          title={t("settings.title")}
-          className="text-sidebar-foreground/70 hover:text-sidebar-foreground"
-        >
-          <Settings className="size-4.5" />
-        </Button>
-      }
-    />
-  );
-}
-
+/** Download a backup file, or restore one after checking what it holds. */
 function BackupSection() {
   const { t, lang } = useLocalize();
   const preferences = usePreferences();

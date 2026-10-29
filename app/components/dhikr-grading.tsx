@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { ArrowUpRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "~/components/ui/dialog";
 import type { Grading } from "~/data/adhkar";
 import { useLocalize } from "~/lib/localize";
@@ -57,6 +58,27 @@ export function DhikrGrading({
             <ul className="space-y-1 text-sm leading-relaxed">
               {grading.notes.map((n, i) => (
                 <li key={i}>{l(n)}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {grading.links.length > 0 && (
+          <section className="space-y-2">
+            <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("grading.check")}</h3>
+            <ul className="space-y-1 text-sm">
+              {grading.links.map((link) => (
+                <li key={link.url}>
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                  >
+                    {l(link.label)}
+                    <ArrowUpRight className="size-3.5 rtl:-scale-x-100" />
+                  </a>
+                </li>
               ))}
             </ul>
           </section>

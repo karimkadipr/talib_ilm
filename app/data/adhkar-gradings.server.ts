@@ -17,12 +17,8 @@ const S = {
   haythami: L("الهيثمي", "al-Haythamī"),
   tirmidhi: L("الترمذي", "al-Tirmidhī"),
   ibnQayyim: L("ابن القيم", "Ibn al-Qayyim"),
-  iraqi: L("العراقي", "al-ʿIrāqī"),
   shakir: L("أحمد شاكر", "Aḥmad Shākir"),
-  dimyati: L("الدمياطي", "al-Dimyāṭī"),
-  uthaymin: L("ابن عثيمين", "Ibn ʿUthaymīn"),
   hakim: L("الحاكم", "al-Ḥākim"),
-  ibnJawzi: L("ابن الجوزي", "Ibn al-Jawzī"),
   bukhari: L("البخاري", "al-Bukhārī"),
   muslim: L("مسلم", "Muslim"),
   bukhariMuslim: L("البخاري ومسلم", "al-Bukhārī & Muslim"),
@@ -31,7 +27,89 @@ const S = {
 
 const r = (who: Localized, ar: string, en: string) => ({ who, ruling: L(ar, en) });
 
-export const gradings: Record<string, Grading> = {
+// Where to read the rulings: a dorar.net search lists every scholar's ruling on the hadith with the
+// book and number. A second link is given where one ruling only shows up under another wording.
+const dorar = (q: string) => `https://dorar.net/hadith/search?q=${encodeURIComponent(q)}`;
+const all = (q: string) => ({ label: L("أحكام العلماء في الدرر السنية", "All rulings on dorar.net"), url: dorar(q) });
+
+const links: Record<string, Grading["links"]> = {
+  kursi: [all("أجير من الجن حتى يمسي")],
+  quls: [all("تكفيك من كل شيء")],
+  baqarah: [all("الآيتين من آخر سورة البقرة في ليلة كفتاه")],
+  "asbahna-mulk": [all("أمسينا وأمسى الملك لله والحمد لله")],
+  sayyid: [all("سيد الاستغفار أن تقول")],
+  bismillah: [
+    all("بسم الله الذي لا يضر مع اسمه شيء في الأرض ولا في السماء"),
+    { label: L("لفظ الفضل", "The virtue's wording"), url: dorar("لم تصبه فجأة بلاء") },
+  ],
+  bika: [all("اللهم بك أصبحنا وبك أمسينا")],
+  fitrah: [all("أصبحنا على فطرة الإسلام")],
+  adada: [all("عدد خلقه ورضا نفسه وزنة عرشه")],
+  afini: [all("اللهم عافني في بدني")],
+  afw: [all("استر عوراتي وآمن روعاتي")],
+  "ya-hayy": [all("يا حي يا قيوم برحمتك أستغيث")],
+  "alim-ghayb": [all("عالم الغيب والشهادة فاطر السماوات والأرض رب كل شيء ومليكه")],
+  kalimat: [
+    all("أعوذ بكلمات الله التامات من شر ما خلق حين يمسي"),
+    { label: L("حكم ابن باز", "Ibn Bāz's ruling"), url: dorar("لم تضره حمة تلك الليلة") },
+  ],
+  shirk: [all("نعوذ بك من أن نشرك بك شيئا نعلمه")],
+  hamm: [all("غلبة الدين وقهر الرجال")],
+  "astaghfir-azim": [all("أستغفر الله الذي لا إله إلا هو الحي القيوم وأتوب إليه")],
+  tahlil: [all("في يوم مائة مرة كانت له عدل عشر رقاب")],
+  tasbih: [all("حين يصبح وحين يمسي سبحان الله وبحمده مائة مرة")],
+  istighfar: [
+    { label: L("رواية الصباح في الدرر السنية", "The morning narration on dorar.net"), url: dorar("ما أصبحت غداة قط إلا استغفرت الله فيها مائة مرة") },
+    { label: L("مائة مرة في اليوم", "A hundred times a day"), url: dorar("لأستغفر الله وأتوب إليه في اليوم مائة مرة") },
+  ],
+};
+
+// The hadith itself in its collection, outside dorar: sunnah.com (which also shows al-Albānī's or
+// Dārussalām's grading for the Sunan), or hadithunlocked.com for collections sunnah.com doesn't carry.
+// Each link was opened and checked to show this hadith (Oct 2026). sunnah.com's own numbering can
+// differ from the printed books (Muslim 2709 is its "2709a").
+const BOOK = {
+  bukhari: L("صحيح البخاري", "Ṣaḥīḥ al-Bukhārī"),
+  muslim: L("صحيح مسلم", "Ṣaḥīḥ Muslim"),
+  abudawud: L("سنن أبي داود", "Sunan Abī Dāwūd"),
+  tirmidhi: L("جامع الترمذي", "Jāmiʿ al-Tirmidhī"),
+  ibnmajah: L("سنن ابن ماجه", "Sunan Ibn Mājah"),
+  adab: L("الأدب المفرد", "al-Adab al-Mufrad"),
+  ahmad: L("مسند أحمد", "Musnad Aḥmad"),
+  hakim: L("مستدرك الحاكم", "al-Mustadrak of al-Ḥākim"),
+  nasaikubra: L("السنن الكبرى للنسائي", "al-Nasāʾī, al-Sunan al-Kubrā"),
+};
+const at = (site: string, book: keyof typeof BOOK, n: string, path = `${book}:${n}`) => ({
+  label: L(`${BOOK[book].ar} (${n.replace(/[a-z]$/, "")}) — ${site}`, `${BOOK[book].en} ${n.replace(/[a-z]$/, "")} on ${site}`),
+  url: `https://${site}/${path}`,
+});
+const sn = (book: keyof typeof BOOK, n: string) => at("sunnah.com", book, n);
+const hu = (book: keyof typeof BOOK, n: string) => at("hadithunlocked.com", book, n);
+
+const sources: Record<string, Grading["links"]> = {
+  kursi: [hu("nasaikubra", "10731"), sn("bukhari", "2311")],
+  quls: [sn("abudawud", "5082"), sn("tirmidhi", "3575")],
+  baqarah: [sn("bukhari", "5009"), sn("muslim", "807")],
+  "asbahna-mulk": [sn("muslim", "2723")],
+  sayyid: [sn("bukhari", "6306")],
+  bismillah: [sn("abudawud", "5088"), sn("tirmidhi", "3388"), sn("ibnmajah", "3869")],
+  bika: [sn("tirmidhi", "3391"), sn("abudawud", "5068")],
+  fitrah: [hu("ahmad", "15360")],
+  adada: [sn("muslim", "2726")],
+  afini: [sn("abudawud", "5090")],
+  afw: [sn("abudawud", "5074"), sn("ibnmajah", "3871")],
+  "ya-hayy": [hu("hakim", "2000")],
+  "alim-ghayb": [sn("abudawud", "5067"), sn("tirmidhi", "3392"), sn("tirmidhi", "3529")],
+  kalimat: [sn("muslim", "2709a")],
+  shirk: [sn("adab", "716")],
+  hamm: [sn("bukhari", "6363"), sn("abudawud", "1555")],
+  "astaghfir-azim": [sn("abudawud", "1517"), sn("tirmidhi", "3577")],
+  tahlil: [sn("bukhari", "3293"), sn("muslim", "2691")],
+  tasbih: [sn("muslim", "2692"), sn("bukhari", "6405")],
+  istighfar: [sn("ibnmajah", "3815"), sn("muslim", "2702")],
+};
+
+const base: Record<string, Omit<Grading, "links">> = {
   kursi: {
     verdict: "sahih",
     takhrij: "رواه النسائي في الكبرى (10731) وابن حبان (417)، وصححه الألباني في صحيح الترغيب (662)",
@@ -91,75 +169,6 @@ export const gradings: Record<string, Grading> = {
     rulings: [
       r(S.bukhari, "في صحيح البخاري", "In Ṣaḥīḥ al-Bukhārī"),
       r(S.albani, "صحيح، باللفظ المذكور هنا (أبو داود 5070)", "Ṣaḥīḥ, in the wording shown here (Abū Dāwūd 5070)"),
-    ],
-  },
-  raditu: {
-    verdict: "disputed",
-    takhrij: "ضعفه الألباني في ضعيف أبي داود (5072) والضعيفة (5020)، وحسنه ابن باز وابن حجر",
-    reason: L(
-      "الروايات التي فيها «كان حقا على الله أن يرضيه» ضعفها الألباني، وحسنها ابن باز وابن حجر. وصحح الألباني لفظا آخر من حديث المنيذر يقال في الصباح، وفضله: «فأنا الزعيم لآخذن بيده حتى أدخله الجنة» (الصحيحة 2686).",
-      "Al-Albānī graded the narrations promising «it is a right on Allah to please him» weak; Ibn Bāz and Ibn Ḥajar graded it ḥasan. Al-Albānī did authenticate a different wording: al-Munaydhir's hadith, said in the morning, «I guarantee to take his hand until I enter him into Paradise» (al-Ṣaḥīḥah 2686).",
-    ),
-    rulings: [
-      r(S.albani, "ضعيف (ضعيف أبي داود 5072، الضعيفة 5020)", "Weak (Ḍaʿīf Abī Dāwūd 5072; al-Ḍaʿīfah 5020)"),
-      r(S.ibnBaz, "إسناده حسن (مجموع الفتاوى 26/28)", "Isnād ḥasan (Majmūʿ 26/28)"),
-      r(S.ibnHajar, "حسن (نتائج الأفكار 2/371)", "Ḥasan (Natāʾij al-Afkār 2/371)"),
-      r(S.arnaut, "صحيح لغيره", "Ṣaḥīḥ li-ghayrih"),
-    ],
-  },
-  ushhiduk: {
-    verdict: "disputed",
-    takhrij: "ضعفه الألباني في ضعيف أبي داود (5069)، وحسنه ابن باز والأرناؤوط، وجوّده النووي",
-    reason: L(
-      "حديث أنس: من قالها مرة أعتق الله ربعه من النار، ومن قالها أربعا أعتقه الله من النار. وأشار المنذري إلى راوٍ في حديثه اضطراب، ولذلك ضعفه الألباني.",
-      "Anas's hadith: each saying frees a quarter of him from the Fire, four times frees him. Al-Mundhirī noted a narrator whose reports are inconsistent, which is why al-Albānī weakened it.",
-    ),
-    rulings: [
-      r(S.albani, "ضعيف (ضعيف أبي داود 5069، الضعيفة 1041)", "Weak (Ḍaʿīf Abī Dāwūd 5069; al-Ḍaʿīfah 1041)"),
-      r(S.ibnBaz, "حسن ولا بأس به (نور على الدرب)", "Ḥasan, no harm in it (Nūr ʿalā al-Darb)"),
-      r(S.nawawi, "إسناده جيد", "Isnād jayyid"),
-      r(S.ibnHajar, "حسن غريب (نتائج الأفكار 2/375)", "Ḥasan gharīb (Natāʾij 2/375)"),
-      r(S.arnaut, "حسن", "Ḥasan"),
-    ],
-    notes: [
-      L(
-        "عبارة «وحدك لا شريك لك» ليست في هذا الحديث (أبو داود 5069)، وإنما في رواية أخرى (5078).",
-        "«وحدك لا شريك لك» isn't in this hadith (Abū Dāwūd 5069); it comes from another narration (5078).",
-      ),
-    ],
-  },
-  "ma-asbaha": {
-    verdict: "disputed",
-    takhrij: "ضعفه الألباني في ضعيف أبي داود (5073)، وحسنه ابن باز وابن حجر، وجوّده النووي",
-    reason: L(
-      "حديث عبد الله بن غنام: من قالها حين يصبح فقد أدى شكر يومه، ومن قالها حين يمسي فقد أدى شكر ليلته. والخلاف فيه بسبب راوٍ عدّه الألباني والأرناؤوط مجهولا.",
-      "ʿAbd Allāh ibn Ghannām's hadith: saying it fulfils the thanks of that day or night. The dispute is over one narrator, whom al-Albānī and al-Arnaʾūṭ consider unknown.",
-    ),
-    rulings: [
-      r(S.albani, "ضعيف (ضعيف أبي داود 5073، الكلم الطيب 26)", "Weak (Ḍaʿīf Abī Dāwūd 5073; al-Kalim al-Ṭayyib 26)"),
-      r(S.arnaut, "إسناده ضعيف: عبد الله بن عنبسة مجهول", "Weak: ʿAbd Allāh ibn ʿAnbasah is unknown"),
-      r(S.ibnBaz, "إسناده حسن (مجموع الفتاوى 26/30)", "Isnād ḥasan (Majmūʿ 26/30)"),
-      r(S.ibnHajar, "حسن (نتائج الأفكار 2/380)", "Ḥasan (Natāʾij 2/380)"),
-      r(S.nawawi, "إسناده جيد", "Isnād jayyid"),
-    ],
-  },
-  hasbiyallah: {
-    verdict: "disputed",
-    takhrij: "موقوف على أبي الدرداء، جوّد إسناده ابن باز، وحكم الألباني على المرفوع بالنكارة (الضعيفة 5286)",
-    reason: L(
-      "ثبت -على قول من صححه- من قول الصحابي أبي الدرداء، لا من قول النبي ﷺ. وألفاظه من القرآن (التوبة 129).",
-      "Established, at best, as a saying of the Companion Abū al-Dardāʾ, not of the Prophet ﷺ. The words themselves are from the Qurʾān (al-Tawbah 129).",
-    ),
-    rulings: [
-      r(S.albani, "المرفوع منكر (الضعيفة 5286)، والموقوف ضعيف (ضعيف الترغيب 382)", "The Prophetic wording is munkar (al-Ḍaʿīfah 5286); weak as Abū al-Dardāʾ's saying too (Ḍaʿīf al-Targhīb 382)"),
-      r(S.ibnBaz, "موقوف بإسناد جيد (مجموع الفتاوى 26/65)", "Abū al-Dardāʾ's saying with a good chain (Majmūʿ 26/65)"),
-      r(S.arnaut, "إسناد الموقوف صحيح، وزيادة «صادقا كان بها أو كاذبا» منكرة", "Chain to Abū al-Dardāʾ ṣaḥīḥ; «صادقا كان بها أو كاذبا» is munkar"),
-    ],
-    notes: [
-      L(
-        "قوله في الفضل «من أمر الدنيا والآخرة» من اللفظ المرفوع الذي حكم عليه الألباني بالنكارة.",
-        "The virtue's «من أمر الدنيا والآخرة» comes from the Prophetic wording al-Albānī called munkar.",
-      ),
     ],
   },
   bismillah: {
@@ -264,20 +273,6 @@ export const gradings: Record<string, Grading> = {
     ],
     notes: [L("لم يرد في الحديث عدد، فيكفي أن يقال مرة واحدة.", "The hadith gives no count; saying it once is enough.")],
   },
-  fathahu: {
-    verdict: "disputed",
-    takhrij: "ضعفه الألباني في ضعيف أبي داود (5084) والضعيفة (5606)، وحسنه ابن القيم والأرناؤوط",
-    reason: L(
-      "حديث أبي مالك الأشعري. استقر قول الألباني على تضعيفه، وحسنه ابن القيم والأرناؤوط.",
-      "Abū Mālik al-Ashʿarī's hadith. Al-Albānī's final ruling is weak; Ibn al-Qayyim and the Arnaʾūṭs graded it ḥasan.",
-    ),
-    rulings: [
-      r(S.albani, "حسنه أولا (صحيح الجامع 352) ثم ضعفه (الضعيفة 5606)", "Ḥasan at first (Ṣaḥīḥ al-Jāmiʿ 352), then weak (al-Ḍaʿīfah 5606)"),
-      r(S.ibnQayyim, "حسن (زاد المعاد 2/337)", "Ḥasan (Zād al-Maʿād 2/337)"),
-      r(S.iraqi, "إسناده جيد", "Isnād jayyid"),
-      r(S.arnaut, "حسن", "Ḥasan"),
-    ],
-  },
   "alim-ghayb": {
     verdict: "sahih",
     takhrij: "رواه أبو داود (5067) والترمذي (3392، 3529)، وصححه الألباني",
@@ -309,19 +304,6 @@ export const gradings: Record<string, Grading> = {
         "الأحاديث تذكر المساء، وروايته في الصباح ضعيفة السند.",
         "The hadiths name the evening; the morning narration has only weak support.",
       ),
-    ],
-  },
-  salah: {
-    verdict: "daif",
-    takhrij: "ضعفه الألباني في الضعيفة (5788) بعد أن حسّنه، وقال ابن باز: لا أعرف له صحة",
-    reason: L(
-      "العدد عشرا والفضل «أدركته شفاعتي» لم يردا إلا في هذا الحديث، وفي إسناده انقطاع (خالد بن معدان لم يسمع من أبي الدرداء) وراوٍ مجهول. أما الصلاة على النبي ﷺ صباحا ومساء وفي كل وقت فمشروعة وفضلها عظيم.",
-      "The ×10 and the promise «my intercession will reach him» come only from this hadith, whose chain is broken (Khālid ibn Maʿdān never met Abū al-Dardāʾ) and has an unknown narrator. Sending ṣalāh on the Prophet ﷺ is itself greatly rewarded at any time; it's the fixed count and this virtue that aren't established.",
-    ),
-    rulings: [
-      r(S.albani, "حسنه أولا (صحيح الجامع 5357) ثم ضعفه (الضعيفة 5788)", "Ḥasan at first (Ṣaḥīḥ al-Jāmiʿ 5357), then weak (al-Ḍaʿīfah 5788)"),
-      r(S.ibnBaz, "لا أعرف له صحة", "«I don't know it to be authentic»"),
-      r(S.iraqi, "ضعيف", "Weak"),
     ],
   },
   shirk: {
@@ -376,49 +358,6 @@ export const gradings: Record<string, Grading> = {
     ],
     notes: [L("ذكر ثابت عام، غير مقيد بالصباح والمساء.", "An authentic general dhikr, not tied to the morning or evening.")],
   },
-  "ya-rabb": {
-    verdict: "disputed",
-    takhrij: "رواه ابن ماجه (3801) وضعفه الألباني",
-    reason: L(
-      "حديث ابن عمر، مختلف فيه والأقرب ضعفه، وليس فيه تقييد بالصباح والمساء ولا عدد.",
-      "Ibn ʿUmar's hadith; disputed, leaning weak. Either way it has no morning or evening link and no count.",
-    ),
-    rulings: [
-      r(S.albani, "ضعيف (ضعيف ابن ماجه، ضعيف الترغيب 961)", "Weak (Ḍaʿīf Ibn Mājah; Ḍaʿīf al-Targhīb 961)"),
-      r(S.shakir, "إسناده جيد", "Isnād jayyid"),
-      r(S.dimyati, "حسن", "Ḥasan"),
-    ],
-    notes: [L("ليس من أذكار الصباح والمساء، ولم يرد فيه عدد.", "Not a morning or evening dhikr, and no narration gives a count.")],
-  },
-  "ilm-nafi": {
-    verdict: "disputed",
-    takhrij: "رواه ابن ماجه (925) وصححه الألباني، وضعفه ابن باز",
-    reason: L(
-      "حديث أم سلمة: كان النبي ﷺ يقوله بعد السلام من صلاة الفجر. صححه الألباني وحسنه ابن حجر، وضعفه ابن باز وابن عثيمين لجهالة راويه.",
-      "Umm Salamah: the Prophet ﷺ said it after the salām of Fajr. Al-Albānī and Ibn Ḥajar accept it; Ibn Bāz and Ibn ʿUthaymīn point to an unknown narrator.",
-    ),
-    rulings: [
-      r(S.albani, "صحيح (صحيح ابن ماجه 762)", "Ṣaḥīḥ (Ṣaḥīḥ Ibn Mājah 762)"),
-      r(S.ibnHajar, "حسن بشاهده", "Ḥasan through a supporting narration"),
-      r(S.ibnBaz, "ضعيف (مجموع الشروح الفقهية 6/509)", "Weak (Majmūʿ al-Shurūḥ al-Fiqhiyyah 6/509)"),
-      r(S.uthaymin, "مولى أم سلمة مجهول (مجموع الفتاوى 13/277)", "The client of Umm Salamah who narrates it is unknown (Majmūʿ 13/277)"),
-    ],
-  },
-  tawakkaltu: {
-    verdict: "daif",
-    takhrij: "رواه ابن السني (57) والطبراني في الدعاء (343)، وضعفه جدا الألباني في الضعيفة (6420)",
-    reason: L(
-      "قصة احتراق ما حول بيت أبي الدرداء دون بيته. في إسناده الأغلب بن تميم، وهو منكر الحديث.",
-      "The story of Abū al-Dardāʾ's house not burning. Its chain has al-Aghlab ibn Tamīm, whose reports are rejected.",
-    ),
-    rulings: [
-      r(S.albani, "ضعيف جدا (الضعيفة 6420)", "Very weak (al-Ḍaʿīfah 6420)"),
-      r(S.arnaut, "الأغلب بن تميم منكر الحديث", "Its narrator al-Aghlab ibn Tamīm is munkar al-ḥadīth"),
-      r(S.ibnJawzi, "لا يثبت", "«Not established»"),
-      r(S.iraqi, "ضعيف", "Weak"),
-    ],
-    notes: [L("قوله «ذكر طيب» ليس من الحديث.", "«ذكر طيب» isn't from any hadith.")],
-  },
   tahlil: {
     verdict: "sahih",
     takhrij: "متفق عليه: البخاري (3293) ومسلم (2691)، وفيه: في يوم مائة مرة",
@@ -459,3 +398,7 @@ export const gradings: Record<string, Grading> = {
     ],
   },
 };
+
+export const gradings: Record<string, Grading> = Object.fromEntries(
+  Object.entries(base).map(([key, g]) => [key, { ...g, links: [...(sources[key] ?? []), ...(links[key] ?? [])] }]),
+);

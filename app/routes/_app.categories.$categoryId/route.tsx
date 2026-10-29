@@ -350,7 +350,7 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
         <div className="min-w-0 flex-1">
           <p className="text-sm leading-relaxed text-muted-foreground">{t("category.programmeBody")}</p>
           {programme && (
-            <Link to="/" className="mt-1 inline-block text-sm text-primary hover:underline">
+            <Link to={href("/program")} className="mt-1 inline-block text-sm text-primary hover:underline">
               {t("category.openProgramme")}
             </Link>
           )}

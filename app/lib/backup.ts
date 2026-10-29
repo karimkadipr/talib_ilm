@@ -39,7 +39,7 @@ export function downloadBackup(preferences: Backup["preferences"], locale: strin
   a.href = url;
   // Local date, so a backup made late in the evening is named for that day.
   const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  a.download = `islamic-studies-backup-${day}.json`;
+  a.download = `al-sabeel-backup-${day}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }

@@ -17,6 +17,8 @@ export type Category = {
   /** Shorter label for the mobile tab bar, where six items share the width. */
   shortName?: Localized;
   description: Localized;
+  /** Accent of its card on the home page. */
+  hue: number;
   items: CategoryItem[];
 };
 
@@ -27,6 +29,7 @@ export const categories: Category[] = [
     id: "talab-al-ilm",
     name: L("طلب العلم", "Seeking Knowledge", "Quête du savoir"),
     shortName: L("طلب العلم", "Knowledge", "Savoir"),
+    hue: 163,
     description: L(
       "العلوم الشرعية وكتبها مرتّبة على المستويات، مع شروح العلماء المسجّلة.",
       "The Islamic sciences and their books, arranged by level, with scholars' recorded explanations.",
@@ -37,6 +40,7 @@ export const categories: Category[] = [
   {
     id: "adhkar",
     name: L("الأذكار", "Adhkār", "Adhkār"),
+    hue: 75,
     description: L(
       "أذكار الصباح والمساء من الكتاب والسنة، مع عدّاد لكل ذكر.",
       "The morning and evening remembrance from the Qur'ān and Sunnah, with a counter for each dhikr.",
@@ -51,6 +55,7 @@ export const categories: Category[] = [
     id: "quran",
     name: L("القرآن الكريم", "Qur'ān", "Coran"),
     shortName: L("القرآن", "Qur'ān", "Coran"),
+    hue: 190,
     description: L(
       "تلاوات المصحف كاملاً بأصوات القرّاء، سورةً سورة.",
       "Complete recitations of the Qur'ān by its reciters, surah by surah.",

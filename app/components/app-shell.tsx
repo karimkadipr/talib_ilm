@@ -1,11 +1,11 @@
 import { cn } from "cn";
-import { AudioLines, BookOpen, CalendarDays, Flame, GraduationCap, Play, Settings, Sun } from "lucide-react";
+import { CalendarDays, Flame, GraduationCap, Play, Settings, Sun } from "lucide-react";
 import { href, Link, NavLink, useLocation, useNavigation } from "react-router";
-import { DuaHandsIcon } from "~/components/dua-hands-icon";
+import { CategoryIcon } from "~/components/category-icon";
 import { LanguageSwitcher } from "~/components/language-switcher";
 import { LogoMark } from "~/components/logo";
 import { MiniPlayer } from "~/components/mini-player";
-import { SettingsButton, SettingsDialog } from "~/components/settings-dialog";
+import { SettingsDialog } from "~/components/settings-dialog";
 import { Button } from "~/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "~/components/ui/dropdown-menu";
 import { categories, itemInfo } from "~/data/categories";
@@ -23,11 +23,6 @@ function navClass({ isActive }: { isActive: boolean }) {
   );
 }
 
-function CategoryIcon({ id, className }: { id: string; className?: string }) {
-  const Icon = id === "adhkar" ? DuaHandsIcon : id === "quran" ? AudioLines : BookOpen;
-  return <Icon className={className} />;
-}
-
 function Sidebar() {
   const { l, t } = useLocalize();
   const { programme } = usePreferences();
@@ -42,7 +37,7 @@ function Sidebar() {
       <nav className="scrollbar-slim flex-1 space-y-1 overflow-y-auto px-3 py-2 [scrollbar-gutter:stable]">
         {programme && (
           <div className="space-y-1 pb-4">
-            <NavLink to="/" end className={navClass}>
+            <NavLink to={href("/program")} className={navClass}>
               <CalendarDays className="size-4" />
               {t("nav.program")}
             </NavLink>
@@ -81,10 +76,6 @@ function Sidebar() {
           </div>
         ))}
       </nav>
-
-      <div className="flex justify-end border-t p-3">
-        <SettingsButton />
-      </div>
     </aside>
   );
 }
@@ -145,7 +136,7 @@ function MyStudyMenu({ resume, className }: { resume?: string; className: (s: { 
   const { t } = useLocalize();
   const { pathname } = useLocation();
   const links = [
-    { to: "/", label: t("nav.program"), Icon: CalendarDays, active: pathname === "/" },
+    { to: href("/program"), label: t("nav.program"), Icon: CalendarDays, active: pathname === "/program" },
     { to: href("/today"), label: t("nav.today"), Icon: Sun, active: pathname.startsWith("/today") },
     // "Continue" only once a lesson has been started; before that it would just repeat "Today".
     ...(resume ? [{ to: resume, label: t("nav.continue"), Icon: Play, active: pathname.startsWith("/watch/") }] : []),
@@ -205,10 +196,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="ms-auto flex items-center gap-2">
             <StreakPill />
             <LanguageSwitcher />
-            {/* Phones have no sidebar, so settings sit up here. */}
             <SettingsDialog
               trigger={
-                <Button variant="ghost" size="icon" aria-label={t("settings.title")} className="lg:hidden">
+                <Button variant="ghost" size="icon" aria-label={t("settings.title")} title={t("settings.title")}>
                   <Settings className="size-4" />
                 </Button>
               }

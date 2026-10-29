@@ -25,6 +25,8 @@ export type Grading = {
   rulings: { who: Localized; ruling: Localized }[];
   /** Where the count, timing or virtue shown differs from the hadith. */
   notes?: Localized[];
+  /** Pages where the rulings can be read and checked (dorar.net searches). */
+  links: { label: Localized; url: string }[];
 };
 
 export type AdhkarCollection = {

@@ -6,7 +6,8 @@ import { localDateKey } from "~/lib/progress";
 
 type State = { date: string; done: Record<string, number[]> };
 
-const KEY = "islamic-studies:adhkar:v1";
+// v2: the disputed and weak adhkār were removed, so indices from v1 no longer line up.
+const KEY = "islamic-studies:adhkar:v2";
 const EMPTY: State = { date: "", done: {} };
 
 let state: State = EMPTY;
