@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { CalendarDays, Flame, GraduationCap, Play, Settings, Sun } from "lucide-react";
 import { href, Link, NavLink, useLocation, useNavigation } from "react-router";
 import { CategoryIcon } from "~/components/category-icon";
+import { InstallPrompt } from "~/components/install-prompt";
 import { LanguageSwitcher } from "~/components/language-switcher";
 import { LogoMark } from "~/components/logo";
 import { MiniPlayer } from "~/components/mini-player";
@@ -200,6 +201,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh">
       <NavigationProgress />
+      <InstallPrompt />
       <Sidebar />
       <div className="lg:ps-80">
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-xl sm:px-6">
