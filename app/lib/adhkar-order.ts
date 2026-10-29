@@ -55,16 +55,10 @@ export function useAdhkarOrder(collectionId: string, size: number): number[] {
 }
 
 export const adhkarOrder = {
-  /** Moves the dhikr at display position `from` to position `to` (clamped to the list). */
-  move(collectionId: string, size: number, from: number, to: number) {
-    update((s) => {
-      const order = [...resolve(s[collectionId], size)];
-      const target = Math.max(0, Math.min(size - 1, to));
-      if (from === target) return s;
-      const [item] = order.splice(from, 1);
-      order.splice(target, 0, item);
-      return { ...s, [collectionId]: order };
-    });
+  /** Replaces the whole order (from the reorder sheet); the original order clears the saved one. */
+  set(collectionId: string, order: number[]) {
+    if (order.every((orig, pos) => orig === pos)) return adhkarOrder.reset(collectionId);
+    update((s) => ({ ...s, [collectionId]: order }));
   },
   reset(collectionId: string) {
     update(({ [collectionId]: _, ...rest }) => rest);

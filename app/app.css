@@ -13,6 +13,9 @@
   --font-arabic: "Noto Naskh Arabic", "Readex Pro", serif;
   /* Classical naskh for the adhkar texts. */
   --font-adhkar: "Amiri", "Noto Naskh Arabic", serif;
+  /* The King Fahd Complex's Uthmanic fonts, made for their Hafs and Warsh texts (public/fonts/kfgqpc/). */
+  --font-hafs: "KFGQPC Hafs", "Amiri", serif;
+  --font-warsh: "KFGQPC Warsh", "Amiri", serif;
 
   /* Audio player: equaliser bars, loading shimmer; page-loading bar. */
   --animate-eq: eq 0.9s ease-in-out infinite;
@@ -49,6 +52,18 @@
     0%, 100% { transform: scale(1); }
     40% { transform: scale(1.35); }
   }
+}
+
+/* Held back (block) rather than swapped: in any other font the mushaf text draws its marks wrongly. */
+@font-face {
+  font-family: "KFGQPC Hafs";
+  src: url("/fonts/kfgqpc/hafs.18.woff2") format("woff2");
+  font-display: block;
+}
+@font-face {
+  font-family: "KFGQPC Warsh";
+  src: url("/fonts/kfgqpc/warsh.10.woff2") format("woff2");
+  font-display: block;
 }
 
 @theme inline {

@@ -31,6 +31,7 @@ function useStats(category: Category) {
     return [t("home.sciences", { count: n }), t("program.books", { count: books })];
   }
   if (kinds.has("reciter")) return [t("home.reciters", { count: n })];
+  if (kinds.has("mushaf")) return [t("home.riwayat", { count: n })];
   return [t("home.collections", { count: n })];
 }
 

@@ -7,10 +7,10 @@ import { useLocalize } from "~/lib/localize";
 /**
  * First-visit guide on an adhkar page. The page dims and one real card is lifted above the dim
  * (the page gives it `relative z-50`), so the reader learns by doing: tap the first dhikr, watch
- * the page bring the next one, then meet the ⋮ menu.
+ * the page bring the next one, then meet the reorder button.
  *  - "tap":  the first unfinished dhikr; moves on by itself once its count is reached.
  *  - "next": the dhikr the page scrolled to.
- *  - "menu": the same card, pointing at its ⋮ menu.
+ *  - "menu": the same card, pointing at its ⇅ reorder button.
  */
 export type GuideStep = "tap" | "next" | "menu";
 export const GUIDE_STEPS: GuideStep[] = ["tap", "next", "menu"];

@@ -8,8 +8,9 @@ import { FavoriteButton } from "~/components/favorite-button";
 import { ScholarAvatar } from "~/components/scholar-avatar";
 import { categoryOf } from "~/data/categories";
 import { getReciter } from "~/data/reciters";
-import { type Surah, surahs } from "~/data/surahs";
+import { surahs } from "~/data/surahs";
 import { useLocalize } from "~/lib/localize";
+import { surahMatches } from "~/lib/surah-search";
 import { player, usePlayer } from "~/lib/player";
 import { surahFromTrack, useSurahTrack } from "~/lib/surah-track";
 import { pageMeta } from "~/lib/meta";
@@ -26,34 +27,6 @@ export function meta({ loaderData }: Route.MetaArgs) {
   return pageMeta(loaderData?.meta);
 }
 
-/** Arabic without diacritics and with one form of alif, tāʾ marbūṭah and yāʾ, so "الاعلى" finds "الأعلى". */
-function plainArabic(s: string) {
-  return s
-    .replace(/[ً-ْٰـ]/g, "")
-    .replace(/[أإآٱ]/g, "ا")
-    .replace(/ة/g, "ه")
-    .replace(/ى/g, "ي");
-}
-
-function plainLatin(s: string) {
-  return s
-    .normalize("NFD")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-}
-
-function matches(surah: Surah, query: string, meaning: string) {
-  const q = query.trim().replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660));
-  if (!q) return true;
-  if (/^\d+$/.test(q)) return String(surah.n).startsWith(q);
-  const ar = plainArabic(q).replace(/^سوره\s*/, "");
-  const latin = plainLatin(q);
-  return (
-    (ar.length > 0 && plainArabic(surah.name).includes(ar)) ||
-    (latin.length > 0 && (plainLatin(surah.translit).includes(latin) || plainLatin(meaning).includes(latin)))
-  );
-}
-
 export default function ReciterPage({ loaderData }: Route.ComponentProps) {
   const reciter = getReciter(loaderData.reciterId)!;
   const category = categoryOf("reciter", reciter.id);
@@ -68,7 +41,7 @@ export default function ReciterPage({ loaderData }: Route.ComponentProps) {
   const [query, setQuery] = useState("");
   const playerBox = useRef<HTMLDivElement>(null);
   const totalMinutes = Math.round(reciter.seconds.reduce((a, b) => a + b, 0) / 60);
-  const shown = surahs.filter((s) => matches(s, query, l(s.meaning)));
+  const shown = surahs.filter((s) => surahMatches(s, query, l(s.meaning)));
 
   // Recites on through the mushaf when a surah ends.
   const surahTrack = useSurahTrack();

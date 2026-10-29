@@ -12,6 +12,7 @@ import { getAdhkar } from "~/data/adhkar.server";
 import { getCategory, itemInfo } from "~/data/categories";
 import { countBooks, getSubject, type Subject } from "~/data/curriculum";
 import { seriesForBook } from "~/data/explanations";
+import { getMushaf } from "~/data/mushafs";
 import { getReciter, type Reciter } from "~/data/reciters";
 import { surahs } from "~/data/surahs";
 import { useLocalize } from "~/lib/localize";
@@ -143,6 +144,42 @@ function ReciterCard({ id }: { id: string }) {
             {duration(minutes)}
           </span>
           <span>{l(reciter.riwayah)}</span>
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function MushafCard({ id }: { id: string }) {
+  const mushaf = getMushaf(id)!;
+  const { l, t, isAr } = useLocalize();
+  return (
+    <Link
+      to={itemInfo({ kind: "mushaf", id }).to}
+      style={{ "--hue": mushaf.hue } as React.CSSProperties}
+      className="group flex items-center gap-4 rounded-2xl border bg-card p-4 transition-colors hover:bg-accent/50"
+    >
+      {/* The riwayah's initial, in its own mushaf font. */}
+      <span
+        lang="ar"
+        className={cn("tint-bg tint-fg flex size-14 shrink-0 items-center justify-center rounded-2xl text-3xl", mushaf.font)}
+      >
+        {mushaf.name.ar.split(" ")[1][0]}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">{l(mushaf.name)}</p>
+        {!isAr && (
+          <p lang="ar" className="font-arabic text-sm text-muted-foreground">
+            {mushaf.name.ar}
+          </p>
+        )}
+        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <Layers className="size-3" />
+            {t("quran.surahs", { count: 114 })}
+          </span>
+          <span>{t("quran.ayahs", { count: mushaf.ayahs })}</span>
+          <span>{t("mushaf.pageCount", { count: mushaf.pages })}</span>
         </p>
       </div>
     </Link>
@@ -287,6 +324,8 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
           <SubjectCard key={item.id} subject={getSubject(item.id)!} />
         ) : item.kind === "reciter" ? (
           <ReciterCard key={item.id} id={item.id} />
+        ) : item.kind === "mushaf" ? (
+          <MushafCard key={item.id} id={item.id} />
         ) : (
           <AdhkarCard key={item.id} id={item.id} counts={loaderData.adhkarCounts[item.id] ?? []} />
         ),
@@ -336,7 +375,11 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
       ) : (
         <section>
           <h2 className="mb-4 text-lg font-semibold">
-            {category.items.every((i) => i.kind === "subject") ? t("category.sciences") : t("category.pages")}
+            {category.items.every((i) => i.kind === "subject")
+              ? t("category.sciences")
+              : category.items.every((i) => i.kind === "mushaf")
+                ? t("category.riwayat")
+                : t("category.pages")}
           </h2>
           {grid}
         </section>

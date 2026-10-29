@@ -1,30 +1,11 @@
 import { cn } from "cn";
-import {
-  ArrowDown,
-  ArrowDownToLine,
-  ArrowUp,
-  ArrowUpToLine,
-  Check,
-  CircleHelp,
-  EllipsisVertical,
-  ListRestart,
-  Moon,
-  RotateCcw,
-  ScrollText,
-  Sun,
-} from "lucide-react";
+import { ArrowUpDown, Check, CircleHelp, Moon, RotateCcw, ScrollText, Sun } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { data } from "react-router";
 import { AdhkarGuide, type GuideStep, TapHint } from "~/components/adhkar-guide";
+import { AdhkarReorder } from "~/components/adhkar-reorder";
 import { BackLink } from "~/components/back-link";
 import { DhikrGrading } from "~/components/dhikr-grading";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
 import { categoryOf } from "~/data/categories";
 import { getAdhkarCollection } from "~/data/adhkar";
 import { getAdhkar } from "~/data/adhkar.server";
@@ -57,7 +38,6 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
   const done = useAdhkarDone(collection.id, adhkar.length);
   // Original indices in the reader's order; counts and card refs stay keyed by original index.
   const order = useAdhkarOrder(collection.id, adhkar.length);
-  const reordered = order.some((orig, pos) => orig !== pos);
   const { l, t, num, isAr } = useLocalize();
   // UI-language text on this right-to-left page keeps its own direction so it isn't scrambled.
   const uiDir = isAr ? "rtl" : "ltr";
@@ -72,6 +52,7 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
 
   // The dhikr whose source and grading are open; kept while the dialog closes so it can animate out.
   const [source, setSource] = useState<{ i: number; open: boolean } | null>(null);
+  const [reordering, setReordering] = useState(false);
 
   // The latest tap's ripple: the card, where it was pressed, and a key that restarts the animation.
   const [ripple, setRipple] = useState<{ i: number; x: number; y: number; size: number; key: number } | null>(null);
@@ -137,16 +118,6 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
     }
   }
 
-  function move(from: number, to: number) {
-    const i = order[from];
-    adhkarOrder.move(collection.id, adhkar.length, from, to);
-    // Follow the moved dhikr so it doesn't vanish off-screen (e.g. after "Move to bottom").
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    requestAnimationFrame(() =>
-      cards.current[i]?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" }),
-    );
-  }
-
   return (
     // Adhkar are Arabic, so the whole page is laid out right-to-left whatever the UI language.
     <div dir="rtl" style={{ "--hue": collection.hue } as React.CSSProperties} className="mx-auto max-w-3xl space-y-6">
@@ -184,17 +155,26 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
                 )}
               </span>
             </p>
-            {finished < adhkar.length && (
+            <div dir={uiDir} className="-ms-1 mt-2 flex flex-wrap items-center gap-x-3">
+              {finished < adhkar.length && (
+                <button
+                  type="button"
+                  onClick={startGuide}
+                  className="inline-flex items-center gap-1.5 rounded-full px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <CircleHelp className="size-3.5" />
+                  {t("adhkar.guideReplay")}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={startGuide}
-                dir={uiDir}
-                className="-ms-1 mt-2 inline-flex items-center gap-1.5 rounded-full px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                onClick={() => setReordering(true)}
+                className="inline-flex items-center gap-1.5 rounded-full px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                <CircleHelp className="size-3.5" />
-                {t("adhkar.guideReplay")}
+                <ArrowUpDown className="size-3.5" />
+                {t("adhkar.reorder")}
               </button>
-            )}
+            </div>
           </div>
           {finished > 0 && (
             <button
@@ -339,48 +319,18 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
                       <RotateCcw className="size-4" />
                     </button>
                   )}
-                  <DropdownMenu dir={uiDir}>
-                    <DropdownMenuTrigger
-                      aria-label={t("adhkar.reorder")}
-                      title={t("adhkar.reorder")}
-                      className={cn(
-                        "rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                        guided === "menu" && "tint-bg tint-fg ring-2 ring-[oklch(0.78_0.12_var(--hue))]",
-                      )}
-                    >
-                      <EllipsisVertical className="size-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem disabled={pos === 0} onSelect={() => move(pos, 0)}>
-                        <ArrowUpToLine />
-                        {t("adhkar.moveFirst")}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem disabled={pos === 0} onSelect={() => move(pos, pos - 1)}>
-                        <ArrowUp />
-                        {t("adhkar.moveUp")}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem disabled={pos === order.length - 1} onSelect={() => move(pos, pos + 1)}>
-                        <ArrowDown />
-                        {t("adhkar.moveDown")}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled={pos === order.length - 1}
-                        onSelect={() => move(pos, order.length - 1)}
-                      >
-                        <ArrowDownToLine />
-                        {t("adhkar.moveLast")}
-                      </DropdownMenuItem>
-                      {reordered && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onSelect={() => adhkarOrder.reset(collection.id)}>
-                            <ListRestart />
-                            {t("adhkar.resetOrder")}
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <button
+                    type="button"
+                    onClick={() => setReordering(true)}
+                    aria-label={t("adhkar.reorder")}
+                    title={t("adhkar.reorder")}
+                    className={cn(
+                      "rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                      guided === "menu" && "tint-bg tint-fg ring-2 ring-[oklch(0.78_0.12_var(--hue))]",
+                    )}
+                  >
+                    <ArrowUpDown className="size-4" />
+                  </button>
                 </div>
               </div>
             </li>
@@ -401,6 +351,14 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
         grading={source ? adhkar[source.i].grading : null}
         open={!!source?.open}
         onOpenChange={(open) => setSource((s) => s && { ...s, open })}
+      />
+
+      <AdhkarReorder
+        adhkar={adhkar}
+        order={order}
+        open={reordering}
+        onOpenChange={setReordering}
+        onSave={(next) => adhkarOrder.set(collection.id, next)}
       />
 
       {guide && (

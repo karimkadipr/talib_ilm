@@ -1,15 +1,18 @@
 // Top-level sections of the site, shown in the sidebar. Each lists its pages: the sciences of the
-// curriculum ("Seeking Knowledge"), collections of adhkār, or Qur'an reciters. More categories can be added here.
+// curriculum ("Seeking Knowledge"), collections of adhkār, Qur'an reciters, or the Qur'an's text in
+// each riwayah with its tafsir. More categories can be added here.
 
 import { href } from "react-router";
 import { getAdhkarCollection } from "./adhkar";
 import { getSubject, type Localized, subjects } from "./curriculum";
+import { getMushaf, mushafs } from "./mushafs";
 import { getReciter, reciters } from "./reciters";
 
 export type CategoryItem =
   | { kind: "subject"; id: string }
   | { kind: "adhkar"; id: string }
-  | { kind: "reciter"; id: string };
+  | { kind: "reciter"; id: string }
+  | { kind: "mushaf"; id: string };
 
 export type Category = {
   id: string;
@@ -20,6 +23,8 @@ export type Category = {
   /** Accent of its card on the home page. */
   hue: number;
   items: CategoryItem[];
+  /** List only the category in the sidebar, not its pages (it stays highlighted while one is open). */
+  hideItemsInSidebar?: boolean;
 };
 
 const L = (ar: string, en: string, fr?: string): Localized => ({ ar, en, fr });
@@ -63,6 +68,19 @@ export const categories: Category[] = [
     ),
     items: reciters.map((r) => ({ kind: "reciter", id: r.id })),
   },
+  {
+    id: "tafsir",
+    name: L("تفسير القرآن", "Qur'ān Tafsīr", "Tafsīr du Coran"),
+    shortName: L("التفسير", "Tafsīr", "Tafsīr"),
+    hue: 280,
+    description: L(
+      "المصحف كاملاً بروايتي حفص وورش برسم مصحف المدينة النبوية، وتفسير كل آية بلمسة.",
+      "The full muṣḥaf in the riwayat of Ḥafṣ and Warsh, as written in the Madinah muṣḥaf: tap any ayah for its tafsīr.",
+      "Le muṣḥaf complet selon les riwāyat de Ḥafṣ et de Warsh, tel qu'écrit dans le muṣḥaf de Médine : touchez un verset pour son tafsīr.",
+    ),
+    items: mushafs.map((m) => ({ kind: "mushaf", id: m.id })),
+    hideItemsInSidebar: true,
+  },
 ];
 
 export const DEFAULT_CATEGORY = categories[0].id;
@@ -71,7 +89,7 @@ export function getCategory(id: string) {
   return categories.find((c) => c.id === id);
 }
 
-/** The category a science, adhkār collection or reciter belongs to. */
+/** The category a science, adhkār collection, reciter or mushaf belongs to. */
 export function categoryOf(kind: CategoryItem["kind"], id: string) {
   return categories.find((c) => c.items.some((i) => i.kind === kind && i.id === id));
 }
@@ -85,6 +103,10 @@ export function itemInfo(item: CategoryItem): { name: Localized; to: string; hue
   if (item.kind === "reciter") {
     const r = getReciter(item.id)!;
     return { name: r.name, to: href("/reciters/:reciterId", { reciterId: r.id }), hue: r.hue };
+  }
+  if (item.kind === "mushaf") {
+    const m = getMushaf(item.id)!;
+    return { name: m.name, to: href("/mushaf/:mushafId", { mushafId: m.id }), hue: m.hue };
   }
   const c = getAdhkarCollection(item.id)!;
   return { name: c.name, to: href("/adhkar/:collectionId", { collectionId: c.id }), hue: c.hue };

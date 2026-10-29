@@ -1,0 +1,321 @@
+import { cn } from "cn";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { data, href, Link, useLocation, useNavigate, useNavigation } from "react-router";
+import { AyahActions, type SelectedAyah } from "~/components/ayah-actions";
+import { BackLink } from "~/components/back-link";
+import { getPage, pageCount } from "~/data/mushaf.server";
+import { getMushaf, mushafSource } from "~/data/mushafs";
+import { surahs } from "~/data/surahs";
+import { useLocalize } from "~/lib/localize";
+import { mushafPosition } from "~/lib/mushaf-position";
+import { pageMeta } from "~/lib/meta";
+import { localizer, seo } from "~/lib/meta.server";
+import type { Route } from "./+types/route";
+
+export async function loader({ params, context }: Route.LoaderArgs) {
+  const mushaf = getMushaf(params.mushafId);
+  const page = Number(params.page);
+  const sections = mushaf && Number.isInteger(page) && page >= 1 ? getPage(mushaf.id, page) : undefined;
+  if (!mushaf || !sections) throw data(null, { status: 404 });
+  const { l, num, t } = localizer(context);
+  return {
+    mushafId: mushaf.id,
+    page,
+    pages: pageCount(mushaf.id),
+    sections,
+    meta: seo(context, [`${surahs[sections[0].surah - 1].name} · ${t("mushaf.page", { n: num(page) })}`, l(mushaf.name)]),
+  };
+}
+
+export function meta({ loaderData }: Route.MetaArgs) {
+  return pageMeta(loaderData?.meta);
+}
+
+/** The mushaf's own furniture (header, page number) is Arabic whatever the UI language. */
+const arabicNumber = (n: number) => n.toLocaleString("ar-EG");
+
+/** An ayah's text and its closing number (the non-breaking space and digits its font draws as the ayah mark). */
+const AYAH_NUMBER = /^([\s\S]*?)( ?[٠-٩]+)$/;
+
+/** Below lg the page fills the screen, so its text is sized to fit the frame instead of scrolling. */
+const PHONE = "(max-width: 1023.98px)";
+
+/**
+ * Sizes the page's text (in px, everything inside scales with it in em) to the largest that still
+ * fits its frame, between 12 and 30. Above lg it clears the size and the page keeps its CSS one.
+ */
+function useFitToFrame(frame: React.RefObject<HTMLElement | null>, text: React.RefObject<HTMLElement | null>, key: unknown) {
+  useLayoutEffect(() => {
+    const box = frame.current;
+    const el = text.current;
+    if (!box || !el) return;
+    const phone = window.matchMedia(PHONE);
+    const fit = () => {
+      if (!phone.matches) {
+        el.style.fontSize = "";
+        return;
+      }
+      const s = getComputedStyle(box);
+      const room = box.clientHeight - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom);
+      let lo = 12;
+      let hi = 30;
+      for (let i = 0; i < 9; i++) {
+        const mid = (lo + hi) / 2;
+        el.style.fontSize = `${mid}px`;
+        if (el.offsetHeight <= room) lo = mid;
+        else hi = mid;
+      }
+      el.style.fontSize = `${lo}px`;
+    };
+    fit();
+    // Again once the mushaf font has loaded (its metrics differ from the fallback's), and on resize/rotation.
+    document.fonts?.ready.then(fit);
+    const ro = new ResizeObserver(fit);
+    ro.observe(box);
+    phone.addEventListener("change", fit);
+    return () => {
+      ro.disconnect();
+      phone.removeEventListener("change", fit);
+    };
+  }, [frame, text, key]);
+}
+
+type Turn = "next" | "prev";
+
+export default function MushafPageView({ loaderData }: Route.ComponentProps) {
+  const mushaf = getMushaf(loaderData.mushafId)!;
+  const { page, pages, sections } = loaderData;
+  const { l, t, num, isAr } = useLocalize();
+  const uiDir = isAr ? "rtl" : "ltr";
+  const navigate = useNavigate();
+  // Which way the last turn went, so the new page slides in from the side it was turned from.
+  const turn = (useLocation().state as { turn?: Turn } | null)?.turn;
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const frame = useRef<HTMLDivElement>(null);
+  const text = useRef<HTMLDivElement>(null);
+  useFitToFrame(frame, text, page);
+
+  const to = (n: number) => href("/mushaf/:mushafId/page/:page", { mushafId: mushaf.id, page: String(n) });
+  const back = href("/mushaf/:mushafId", { mushafId: mushaf.id });
+  const prev = page > 1 ? page - 1 : null;
+  const next = page < pages ? page + 1 : null;
+  const first = sections[0];
+  const surahName = `سورة ${surahs[first.surah - 1].name}`;
+  const juz = `الجزء ${arabicNumber(first.ayahs[0].juz)}`;
+
+  useEffect(() => mushafPosition.set(mushaf.id, page), [mushaf.id, page]);
+
+  // The tapped ayah, kept with its page so turning the page drops it; and which edge its panel docks
+  // to on a phone (away from the ayah, so the panel never covers it).
+  const [selection, setSelection] = useState<{ page: number; ayah: SelectedAyah; side: "top" | "bottom" } | null>(null);
+  const selected = selection?.page === page ? selection.ayah : null;
+  const closeAyah = useCallback(() => setSelection(null), []);
+  function pick(ayah: SelectedAyah, el: HTMLElement) {
+    // Selecting words to copy them isn't a tap on the ayah.
+    if (window.getSelection()?.toString()) return;
+    if (selected?.surah === ayah.surah && selected.n === ayah.n) return setSelection(null);
+    const r = el.getBoundingClientRect();
+    setSelection({ page, ayah, side: r.top + r.height / 2 > window.innerHeight * 0.55 ? "top" : "bottom" });
+  }
+
+  // Like a printed mushaf, which opens right to left: the next page lies to the left.
+  const turnTo = useRef<(t: Turn) => void>(null);
+  const loading = useNavigation().state !== "idle";
+  turnTo.current = (dir) => {
+    // Until the next page has rendered, prev/next still describe this one, so a quick second press would skip.
+    if (loading) return;
+    const n = dir === "next" ? next : prev;
+    if (n) navigate(to(n), { state: { turn: dir } });
+  };
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if ((e.target as HTMLElement).closest("input, textarea, select, [contenteditable]")) return;
+      if (e.key === "ArrowLeft") turnTo.current?.("next");
+      else if (e.key === "ArrowRight") turnTo.current?.("prev");
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  /** Previous/next page: a labelled pill on wide screens, a round icon button on phones. */
+  const pageLink = (n: number | null, dir: Turn, compact: boolean) => {
+    const Icon = dir === "next" ? ChevronLeft : ChevronRight;
+    const label = t(dir === "next" ? "mushaf.nextPage" : "mushaf.prevPage");
+    const className = cn(
+      "inline-flex items-center gap-1.5 rounded-full border bg-card text-sm whitespace-nowrap transition-colors hover:bg-accent/60 aria-disabled:pointer-events-none aria-disabled:opacity-30",
+      compact ? "size-10 justify-center" : "px-4 py-2.5",
+    );
+    const body = (
+      <>
+        {dir === "prev" && <Icon className="size-4" />}
+        {compact ? <span className="sr-only">{label}</span> : <span dir={uiDir}>{label}</span>}
+        {dir === "next" && <Icon className="size-4" />}
+      </>
+    );
+    return n ? (
+      <Link to={to(n)} state={{ turn: dir }} prefetch="viewport" aria-label={compact ? label : undefined} className={className}>
+        {body}
+      </Link>
+    ) : (
+      <span aria-disabled className={className}>
+        {body}
+      </span>
+    );
+  };
+
+  return (
+    <div
+      style={{ "--hue": mushaf.hue } as React.CSSProperties}
+      className={cn(
+        "mx-auto max-w-2xl space-y-4",
+        // On phones the page is the whole screen, over the app's header and tab bar.
+        "max-lg:fixed max-lg:inset-0 max-lg:z-40 max-lg:flex max-lg:max-w-none max-lg:flex-col max-lg:gap-2 max-lg:space-y-0 max-lg:bg-background max-lg:px-3 max-lg:pt-[max(env(safe-area-inset-top),0.5rem)] max-lg:pb-[max(env(safe-area-inset-bottom),0.5rem)]",
+      )}
+    >
+      <BackLink to={back} className="max-lg:hidden">
+        {l(mushaf.name)}
+      </BackLink>
+
+      {/* Phone top bar: back, then the running head on one line. */}
+      <div className="flex h-10 shrink-0 items-center gap-2 lg:hidden">
+        <Link
+          to={back}
+          aria-label={`${t("nav.back")}: ${l(mushaf.name)}`}
+          className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <ChevronLeft className="size-5 rtl:rotate-180" />
+        </Link>
+        <p lang="ar" dir="rtl" className="font-arabic flex min-w-0 flex-1 justify-between gap-3 pe-2 text-sm text-muted-foreground">
+          <span className="truncate">{surahName}</span>
+          <span className="shrink-0">{juz}</span>
+        </p>
+      </div>
+
+      <article
+        key={page}
+        lang="ar"
+        dir="rtl"
+        onTouchStart={(e) => {
+          touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }}
+        onTouchEnd={(e) => {
+          const start = touch.current;
+          touch.current = null;
+          if (!start || window.getSelection()?.toString()) return;
+          const dx = e.changedTouches[0].clientX - start.x;
+          const dy = e.changedTouches[0].clientY - start.y;
+          // A clear sideways swipe: pulling the page to the right brings the next one, as in a mushaf.
+          if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+          turnTo.current?.(dx > 0 ? "next" : "prev");
+        }}
+        className={cn(
+          "duration-300 animate-in fade-in motion-reduce:animate-none max-lg:flex max-lg:min-h-0 max-lg:flex-1 max-lg:flex-col",
+          turn === "next" && "slide-in-from-left-8",
+          turn === "prev" && "slide-in-from-right-8",
+        )}
+      >
+        {/* Running head, as in the printed mushaf: the surah on one side, the juz on the other. */}
+        <header className="font-arabic flex items-baseline justify-between px-2 pb-2 text-sm text-muted-foreground max-lg:hidden">
+          <span>{surahName}</span>
+          <span>{juz}</span>
+        </header>
+
+        <div className="tint-border rounded-[1.75rem] border-2 bg-card p-1.5 shadow-[0_20px_60px_-30px_oklch(0.6_0.1_var(--hue)/0.35)] max-lg:flex max-lg:min-h-0 max-lg:flex-1 max-lg:flex-col max-lg:rounded-3xl max-lg:p-1">
+          <div
+            ref={frame}
+            // Tapping the page anywhere but an ayah puts the selection away.
+            onClick={(e) => !(e.target as Element).closest("[data-ayah]") && setSelection(null)}
+            className="tint-border flex min-h-[70dvh] flex-col rounded-[1.4rem] border px-4 py-6 sm:px-10 sm:py-9 max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:rounded-[1.25rem] max-lg:px-3 max-lg:py-3 sm:max-lg:px-8"
+          >
+            {/* Everything below is sized in em from here, so fitting the page scales it all together. */}
+            {/* Centred on a short page (auto margins, unlike justify-center, never clip one that overflows). */}
+            <div ref={text} className="text-[1.45rem] sm:text-[1.7rem] max-lg:my-auto">
+              {sections.map((s) => (
+                <section key={s.surah} id={`surah-${s.surah}`} className="scroll-mt-24">
+                  {s.opens && (
+                    <h2 className="tint-border tint-bg bg-khatam font-arabic relative my-[0.4em] rounded-xl border py-[0.25em] text-[0.75em] text-center! first:mt-0">
+                      سورة {surahs[s.surah - 1].name}
+                    </h2>
+                  )}
+                  {s.basmala && (
+                    <p className={cn("my-[0.3em] text-center text-[1.08em] leading-loose", mushaf.font)}>{s.basmala}</p>
+                  )}
+                  <p
+                    className={cn(
+                      "text-justify leading-[2.2] text-foreground",
+                      // A surah's last lines sit centred, as in print; text running on to the next page stays flush.
+                      s.closes ? "[text-align-last:center]" : "[text-align-last:right]",
+                      mushaf.font,
+                    )}
+                  >
+                    {s.ayahs.map((a) => {
+                      const [, words, number] = a.text.match(AYAH_NUMBER) ?? [a.text, a.text, ""];
+                      const ayah = { surah: s.surah, n: a.n, hafs: a.hafs, words };
+                      const isSelected = selected?.surah === s.surah && selected.n === a.n;
+                      return (
+                        <span key={a.n}>
+                          {/* Tapping an ayah selects it and opens its actions (tafsir, copy). */}
+                          <span
+                            id={`ayah-${s.surah}-${a.n}`}
+                            data-ayah
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={isSelected}
+                            onClick={(e) => pick(ayah, e.currentTarget)}
+                            onKeyDown={(e) => {
+                              if (e.key !== "Enter" && e.key !== " ") return;
+                              e.preventDefault();
+                              pick(ayah, e.currentTarget);
+                            }}
+                            className={cn(
+                              "cursor-pointer rounded-lg box-decoration-clone transition-colors outline-none hover:bg-white/4 focus-visible:bg-accent/60",
+                              isSelected && "tint-bg hover:tint-bg",
+                            )}
+                          >
+                            {words}
+                            {/* The ayah mark in the riwayah's colour, so where each ayah ends stands out. */}
+                            <span className="tint-fg">{number}</span>
+                          </span>{" "}
+                        </span>
+                      );
+                    })}
+                  </p>
+                </section>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <footer className="font-arabic pt-2 text-center text-sm text-muted-foreground max-lg:hidden">{arabicNumber(page)}</footer>
+      </article>
+
+      {/* Laid out like the mushaf: previous page on the right, next on the left. */}
+      <nav dir="rtl" className="flex items-center justify-between gap-3 max-lg:hidden">
+        {pageLink(prev, "prev", false)}
+        <span dir="ltr" title={t("mushaf.pageOf", { n: num(page), total: num(pages) })} className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+          {num(page)} / {num(pages)}
+        </span>
+        {pageLink(next, "next", false)}
+      </nav>
+      {/* Phone: small turn buttons around the page number (swiping turns pages too). */}
+      <nav dir="rtl" className="flex shrink-0 items-center justify-between lg:hidden">
+        {pageLink(prev, "prev", true)}
+        <span className="font-arabic text-sm text-muted-foreground" title={t("mushaf.pageOf", { n: num(page), total: num(pages) })}>
+          {arabicNumber(page)}
+        </span>
+        {pageLink(next, "next", true)}
+      </nav>
+
+      {selection && selected && <AyahActions mushaf={mushaf} ayah={selected} side={selection.side} onClose={closeAyah} />}
+
+      <p className="pb-4 text-center text-xs text-muted-foreground max-lg:hidden">
+        {t("watch.source")}{" "}
+        <a href={mushafSource.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+          {l(mushafSource.name)}
+        </a>
+      </p>
+    </div>
+  );
+}

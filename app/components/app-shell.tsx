@@ -26,6 +26,7 @@ function navClass({ isActive }: { isActive: boolean }) {
 function Sidebar() {
   const { l, t } = useLocalize();
   const { programme } = usePreferences();
+  const { pathname } = useLocation();
 
   return (
     <aside className="fixed inset-y-0 start-0 z-30 hidden w-80 flex-col border-e bg-sidebar lg:flex">
@@ -52,27 +53,40 @@ function Sidebar() {
           <div key={category.id} className="space-y-1">
             <NavLink
               to={href("/categories/:categoryId", { categoryId: category.id })}
-              className={(s) => cn(navClass(s), "font-medium text-sidebar-foreground")}
+              className={({ isActive }) =>
+                cn(
+                  navClass({
+                    // With its pages left out of the sidebar, the category itself marks where the reader is.
+                    isActive:
+                      isActive ||
+                      (!!category.hideItemsInSidebar &&
+                        category.items.some((i) => pathname.startsWith(itemInfo(i).to))),
+                  }),
+                  "font-medium text-sidebar-foreground",
+                )
+              }
             >
               <CategoryIcon id={category.id} className="size-4" />
               <span className="truncate">{l(category.name)}</span>
             </NavLink>
-            <div className="ms-5 space-y-0.5 border-s ps-2">
-              {category.items.map((item) => {
-                const info = itemInfo(item);
-                return (
-                  <NavLink
-                    key={item.id}
-                    to={info.to}
-                    className={navClass}
-                    style={{ "--hue": info.hue } as React.CSSProperties}
-                  >
-                    <span className="tint-solid size-2 shrink-0 rounded-full" />
-                    <span className="truncate">{l(info.name)}</span>
-                  </NavLink>
-                );
-              })}
-            </div>
+            {!category.hideItemsInSidebar && (
+              <div className="ms-5 space-y-0.5 border-s ps-2">
+                {category.items.map((item) => {
+                  const info = itemInfo(item);
+                  return (
+                    <NavLink
+                      key={item.id}
+                      to={info.to}
+                      className={navClass}
+                      style={{ "--hue": info.hue } as React.CSSProperties}
+                    >
+                      <span className="tint-solid size-2 shrink-0 rounded-full" />
+                      <span className="truncate">{l(info.name)}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ))}
       </nav>

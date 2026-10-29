@@ -31,6 +31,9 @@ Data:
 - `app/data/curriculum.ts` — the full programme (Arabic + transliteration). Book ids are the stable keys.
 - `app/data/explanations.ts` — scholars and their explanation series. Only series with real recordings
   are listed (MP3s hosted on archive.org, see `archiveSeries`); books without one show no explanations.
+- `app/data/mushaf/{hafs,warsh}.md` — the Qur'an's full text in each riwayah (King Fahd Complex
+  Uthmanic data, verbatim; format in each file's header), read by `mushaf.server.ts` for the
+  Qur'ān Tafsīr section (`/categories/tafsir`), shown a Madinah-mushaf page at a time (`/mushaf/:mushafId/page/:page`). It needs the KFGQPC fonts in `public/fonts/kfgqpc/`.
 - `app/lib/progress.ts` — progress, streak and notes in `localStorage` — there is no login by design.
 - `app/lib/schedule.ts` — weekday → science (week starts Saturday), current book, progress maths.
 
