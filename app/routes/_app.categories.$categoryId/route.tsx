@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { AudioLines, CalendarDays, Clock, Headphones, Heart, Layers, Moon, Play, Sun } from "lucide-react";
-import { data, href, Link, useSearchParams } from "react-router";
+import { data, href, Link, redirect, useSearchParams } from "react-router";
 import { useClock } from "~/components/audio-lesson";
 import { FavoriteButton } from "~/components/favorite-button";
 import { ProgrammeToggle } from "~/components/programme-toggle";
@@ -13,13 +13,12 @@ import { BackLink } from "~/components/back-link";
 import { CategoryIcon } from "~/components/category-icon";
 import { categoryOf, getCategory, itemInfo } from "~/data/categories";
 import { useCategoryStats } from "~/lib/category-stats";
-import { hifzTotals, useHifz } from "~/lib/hifz";
 import { countBooks, getSubject, type Subject } from "~/data/curriculum";
 import { seriesForBook } from "~/data/explanations";
-import { getMushaf } from "~/data/mushafs";
 import { getReciter, type Reciter } from "~/data/reciters";
 import { surahs } from "~/data/surahs";
 import { useLocalize } from "~/lib/localize";
+import { preferredRiwayah } from "~/lib/riwayah";
 import { useAdhkarDone } from "~/lib/adhkar-progress";
 import { player, usePlayer } from "~/lib/player";
 import { quranFavorites, useQuranFavorites } from "~/lib/quran-favorites";
@@ -31,9 +30,14 @@ import { pageMeta } from "~/lib/meta";
 import { localizer, seo } from "~/lib/meta.server";
 import type { Route } from "./+types/route";
 
-export async function loader({ params, context }: Route.LoaderArgs) {
+export async function loader({ params, context, request }: Route.LoaderArgs) {
   const category = getCategory(params.categoryId);
   if (!category) throw data(null, { status: 404 });
+  // Tafsīr and Memorization open straight onto the reader's riwayah (Ḥafṣ until they switch, there).
+  if (category.items.every((i) => i.kind === "mushaf" || i.kind === "hifz")) {
+    const riwayah = preferredRiwayah(request.headers.get("Cookie"));
+    throw redirect(itemInfo(category.items.find((i) => i.id === riwayah) ?? category.items[0]).to);
+  }
   // Each adhkār collection's repetition counts, for its "done today" figure.
   const adhkarCounts = Object.fromEntries(
     category.items.filter((i) => i.kind === "adhkar").map((i) => [i.id, getAdhkar(i.id as "sabah" | "masaa").map((d) => d.count)]),
@@ -100,10 +104,12 @@ function AdhkarCard({ id, counts }: { id: string; counts: number[] }) {
     <Link
       to={itemInfo({ kind: "adhkar", id }).to}
       style={{ "--hue": collection.hue } as React.CSSProperties}
-      className="group flex items-center gap-4 rounded-2xl border bg-card p-4 transition-colors hover:bg-accent/50"
+      className="group tint-border flex items-center gap-4 rounded-2xl border bg-card bg-[radial-gradient(120%_160%_at_0%_0%,oklch(0.3_0.06_var(--hue)/0.35),transparent_60%)] p-4 transition-colors hover:bg-accent/50 rtl:bg-[radial-gradient(120%_160%_at_100%_0%,oklch(0.3_0.06_var(--hue)/0.35),transparent_60%)]"
     >
       <ProgressRing value={pct} className="tint-fg">
-        <Icon className="size-5 text-foreground" />
+        <span className="tint-bg flex size-10 items-center justify-center rounded-full">
+          <Icon className="size-5" />
+        </span>
       </ProgressRing>
       <div className="min-w-0 flex-1">
         <p className="font-medium">{l(collection.name)}</p>
@@ -148,77 +154,6 @@ function ReciterCard({ id }: { id: string }) {
             {duration(minutes)}
           </span>
           <span>{l(reciter.riwayah)}</span>
-        </p>
-      </div>
-    </Link>
-  );
-}
-
-function MushafCard({ id }: { id: string }) {
-  const mushaf = getMushaf(id)!;
-  const { l, t, isAr } = useLocalize();
-  return (
-    <Link
-      to={itemInfo({ kind: "mushaf", id }).to}
-      style={{ "--hue": mushaf.hue } as React.CSSProperties}
-      className="group flex items-center gap-4 rounded-2xl border bg-card p-4 transition-colors hover:bg-accent/50"
-    >
-      {/* The riwayah's initial, in the mushaf's font. */}
-      <span
-        lang="ar"
-        className="tint-bg tint-fg font-uthmani flex size-14 shrink-0 items-center justify-center rounded-2xl text-3xl"
-      >
-        {mushaf.name.ar.split(" ")[1][0]}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="font-medium">{l(mushaf.name)}</p>
-        {!isAr && (
-          <p lang="ar" className="font-arabic text-sm text-muted-foreground">
-            {mushaf.name.ar}
-          </p>
-        )}
-        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <Layers className="size-3" />
-            {t("quran.surahs", { count: 114 })}
-          </span>
-          <span>{t("quran.ayahs", { count: mushaf.ayahs })}</span>
-          <span>{t("mushaf.pageCount", { count: mushaf.pages })}</span>
-        </p>
-      </div>
-    </Link>
-  );
-}
-
-/** The reader's memorization in a riwayah: how much of it, and what's flagged. */
-function HifzCard({ id }: { id: string }) {
-  const mushaf = getMushaf(id)!;
-  const { l, t, num, isAr } = useLocalize();
-  const totals = hifzTotals(useHifz(id));
-  const exact = (totals.memorized / mushaf.ayahs) * 100;
-  // A tenth of a percent while it's small, so the first ayat already show.
-  const pct = exact < 10 ? Math.floor(exact * 10) / 10 : Math.floor(exact);
-  return (
-    <Link
-      to={itemInfo({ kind: "hifz", id }).to}
-      style={{ "--hue": mushaf.hue } as React.CSSProperties}
-      className="group flex items-center gap-4 rounded-2xl border bg-card p-4 transition-colors hover:bg-accent/50"
-    >
-      <ProgressRing value={exact} className="tint-fg">
-        <span className="text-foreground tabular-nums">{num(pct)}%</span>
-      </ProgressRing>
-      <div className="min-w-0 flex-1">
-        <p className="font-medium">{l(mushaf.name)}</p>
-        {!isAr && (
-          <p lang="ar" className="font-arabic text-sm text-muted-foreground">
-            {mushaf.name.ar}
-          </p>
-        )}
-        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          <span>{t("hifz.memorizedOf", { n: num(totals.memorized), total: num(mushaf.ayahs) })}</span>
-          {totals.weak + totals.transitions > 0 && (
-            <span className="text-amber-500">{t("hifz.flagged", { count: totals.weak + totals.transitions })}</span>
-          )}
         </p>
       </div>
     </Link>
@@ -393,12 +328,8 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
           <SubjectCard key={item.id} subject={getSubject(item.id)!} />
         ) : item.kind === "reciter" ? (
           <ReciterCard key={item.id} id={item.id} />
-        ) : item.kind === "mushaf" ? (
-          <MushafCard key={item.id} id={item.id} />
         ) : item.kind === "category" ? (
           <SectionCard key={item.id} id={item.id} />
-        ) : item.kind === "hifz" ? (
-          <HifzCard key={item.id} id={item.id} />
         ) : (
           <AdhkarCard key={item.id} id={item.id} counts={loaderData.adhkarCounts[item.id] ?? []} />
         ),
@@ -409,7 +340,7 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
   return (
     <div className="space-y-10">
       {parent && (
-        <BackLink to={itemInfo({ kind: "category", id: parent.id }).to} className="-mb-6">
+        <BackLink to={itemInfo({ kind: "category", id: parent.id }).to} className="mb-6">
           {l(parent.name)}
         </BackLink>
       )}
@@ -455,11 +386,9 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
           <h2 className="mb-4 text-lg font-semibold">
             {category.items.every((i) => i.kind === "subject")
               ? t("category.sciences")
-              : category.items.every((i) => i.kind === "mushaf" || i.kind === "hifz")
-                ? t("category.riwayat")
-                : category.items.every((i) => i.kind === "category")
-                  ? t("category.sections")
-                  : t("category.pages")}
+              : category.items.every((i) => i.kind === "category")
+                ? t("category.sections")
+                : t("category.pages")}
           </h2>
           {grid}
         </section>

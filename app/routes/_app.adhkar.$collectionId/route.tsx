@@ -42,6 +42,8 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
   // UI-language text on this right-to-left page keeps its own direction so it isn't scrambled.
   const uiDir = isAr ? "rtl" : "ltr";
   const cards = useRef<(HTMLLIElement | null)[]>([]);
+  const header = useRef<HTMLElement>(null);
+  const reorderButton = useRef<HTMLButtonElement>(null);
   const finished = adhkar.filter((d, i) => done[i] >= d.count).length;
   const Icon = collection.icon === "sun" ? Sun : Moon;
 
@@ -63,19 +65,20 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
     if (first !== undefined) setGuide({ step: "tap", i: first });
   }, [adhkar]);
 
-  // Keep the guided card in view above the guide's panel: from its top (where the tap hint sits),
-  // or, for the ⋮ step, far enough up that its footer clears the panel.
+  // Keep the guided card in view above the guide's panel, from its top (where the tap hint sits); for
+  // the ⇅ step, the header, far enough up that its reorder button clears the panel.
   const guideStep = guide?.step;
   const guideCard = guide?.i;
   useEffect(() => {
     if (guideCard === undefined) return;
     const id = requestAnimationFrame(() => {
-      const el = cards.current[guideCard];
+      const el = guideStep === "menu" ? header.current : cards.current[guideCard];
       if (!el) return;
       const r = el.getBoundingClientRect();
       const panel = document.getElementById("adhkar-guide")?.getBoundingClientRect().top ?? window.innerHeight;
       let delta = r.top - 88;
-      if (guideStep === "menu") delta = Math.max(delta, r.bottom - (panel - 16));
+      const button = reorderButton.current?.getBoundingClientRect();
+      if (guideStep === "menu" && button) delta = Math.max(delta, button.bottom - (panel - 16));
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       window.scrollBy({ top: delta, behavior: reduce ? "auto" : "smooth" });
     });
@@ -123,7 +126,13 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
     <div dir="rtl" style={{ "--hue": collection.hue } as React.CSSProperties} className="mx-auto max-w-3xl space-y-6">
       {category && <BackLink to={`/categories/${category.id}`}>{l(category.name)}</BackLink>}
 
-      <header className="tint-border relative overflow-hidden rounded-3xl border bg-card bg-[radial-gradient(100%_140%_at_100%_0%,oklch(0.3_0.06_var(--hue)/0.5),transparent_60%)] p-6 sm:p-8">
+      <header
+        ref={header}
+        className={cn(
+          "tint-border relative overflow-hidden rounded-3xl border bg-card bg-[radial-gradient(100%_140%_at_100%_0%,oklch(0.3_0.06_var(--hue)/0.5),transparent_60%)] p-6 sm:p-8",
+          guide?.step === "menu" && "z-50 ring-2 ring-[oklch(0.78_0.12_var(--hue))]",
+        )}
+      >
         <div className="bg-khatam pointer-events-none absolute inset-0 mask-[linear-gradient(to_left,black,transparent_70%)] rtl:mask-[linear-gradient(to_right,black,transparent_70%)]" />
         <div className="relative flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -167,9 +176,13 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
                 </button>
               )}
               <button
+                ref={reorderButton}
                 type="button"
                 onClick={() => setReordering(true)}
-                className="inline-flex items-center gap-1.5 rounded-full px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground",
+                  guide?.step === "menu" && "tint-bg tint-fg px-2.5 py-1 ring-2 ring-[oklch(0.78_0.12_var(--hue))]",
+                )}
               >
                 <ArrowUpDown className="size-3.5" />
                 {t("adhkar.reorder")}
@@ -195,7 +208,8 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
           const d = adhkar[i];
           const count = done[i];
           const complete = count >= d.count;
-          const guided = guide?.i === i ? guide.step : null;
+          // The ⇅ step lifts the header instead.
+          const guided = guide?.i === i && guide.step !== "menu" ? guide.step : null;
           return (
             <li
               key={i}
@@ -319,18 +333,6 @@ export default function AdhkarPage({ loaderData }: Route.ComponentProps) {
                       <RotateCcw className="size-4" />
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setReordering(true)}
-                    aria-label={t("adhkar.reorder")}
-                    title={t("adhkar.reorder")}
-                    className={cn(
-                      "rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                      guided === "menu" && "tint-bg tint-fg ring-2 ring-[oklch(0.78_0.12_var(--hue))]",
-                    )}
-                  >
-                    <ArrowUpDown className="size-4" />
-                  </button>
                 </div>
               </div>
             </li>

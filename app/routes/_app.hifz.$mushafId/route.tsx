@@ -4,6 +4,9 @@ import { type HifzLayout, juzParts, LogPanel, type Logged, UndoToast, useAgo, us
 import { useCallback, useEffect, useState } from "react";
 import { data, href, Link } from "react-router";
 import { BackLink } from "~/components/back-link";
+import { CoachMarks, visible } from "~/components/coach-marks";
+import { RiwayahSwitch } from "~/components/riwayah-switch";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "~/components/ui/collapsible";
 import { Progress } from "~/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import {
@@ -41,7 +44,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   const { l, t } = localizer(context);
   return {
     mushafId: mushaf.id,
-    meta: seo(context, [`${t("hifz.title")} · ${l(mushaf.name)}`]),
+    meta: seo(context, [t("hifz.title"), l(mushaf.short)]),
     ...layout(mushaf.id),
   };
 }
@@ -60,6 +63,30 @@ export function meta({ loaderData }: Route.MetaArgs) {
 
 const pageLink = (mushafId: string, page: number, surah: number, n: number) =>
   `${href("/mushaf/:mushafId/page/:page", { mushafId, page: String(page) })}#ayah-${surah}-${n}`;
+
+/** Whether the totals under the progress bar are shown: closed unless the reader opened them (remembered). */
+const SUMMARY_KEY = "islamic-studies:hifz-summary:v1";
+function useSummaryOpen() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    try {
+      setOpen(window.localStorage.getItem(SUMMARY_KEY) === "open");
+    } catch {
+      // Storage blocked: closed each visit.
+    }
+  }, []);
+  return [
+    open,
+    (next: boolean) => {
+      setOpen(next);
+      try {
+        window.localStorage.setItem(SUMMARY_KEY, next ? "open" : "closed");
+      } catch {
+        // Storage blocked: it lasts for this visit.
+      }
+    },
+  ] as const;
+}
 
 /** One ayah in a surah's grid: its state at a glance, and a menu to change it. */
 function AyahChip({
@@ -470,13 +497,14 @@ function History({ mushaf, layout, riwayah }: { mushaf: Mushaf; layout: HifzLayo
                 ) : (
                   <RotateCcw className="size-4 shrink-0 text-muted-foreground" />
                 )}
-                <span className="min-w-0 flex-1 truncate">
+                <span className="min-w-0 flex-1 break-words">
                   {t(e.kind === "memorized" ? "hifz.memorized" : "hifz.revised")} ·{" "}
                   {e.juz ? (
                     <>
                       {t("hifz.juz", { n: num(e.juz) })}{" "}
+                      {/* Its first and last surahs, not all of them (juz 30 has 37). */}
                       <span className="text-muted-foreground">
-                        {juzParts(e.juz, layout).map((p) => surahName(p.surah)).join(", ")}
+                        {surahName(juzParts(e.juz, layout)[0].surah)} – {surahName(juzParts(e.juz, layout).at(-1)!.surah)}
                       </span>
                     </>
                   ) : (
@@ -512,9 +540,12 @@ export default function HifzPage({ loaderData }: Route.ComponentProps) {
   const layout: HifzLayout = { pages, juzStarts: loaderData.juzStarts };
   const [logged, setLogged] = useState<Logged | null>(null);
   const dismiss = useCallback(() => setLogged(null), []);
+  const [summaryOpen, setSummaryOpen] = useSummaryOpen();
   const { l, t, num, isAr } = useLocalize();
   const riwayah = useHifz(mushaf.id);
-  const category = categoryOf("hifz", mushaf.id);
+  // Memorization, under the Qur'an (whose page the back link leads to: Memorization's own opens this one).
+  const section = categoryOf("hifz", mushaf.id)!;
+  const parent = categoryOf("category", section.id);
 
   let memorized = 0;
   let complete = 0;
@@ -531,35 +562,46 @@ export default function HifzPage({ loaderData }: Route.ComponentProps) {
 
   return (
     <div style={{ "--hue": mushaf.hue } as React.CSSProperties} className="mx-auto max-w-3xl space-y-6">
-      {category && <BackLink to={itemInfo({ kind: "category", id: category.id }).to}>{l(category.name)}</BackLink>}
+      {parent && <BackLink to={itemInfo({ kind: "category", id: parent.id }).to}>{l(parent.name)}</BackLink>}
 
-      <header className="tint-border relative overflow-hidden rounded-3xl border bg-card bg-[radial-gradient(100%_140%_at_0%_0%,oklch(0.3_0.06_var(--hue)/0.5),transparent_60%)] p-6 sm:p-8 rtl:bg-[radial-gradient(100%_140%_at_100%_0%,oklch(0.3_0.06_var(--hue)/0.5),transparent_60%)]">
-        <p className="text-sm text-gold">{t("hifz.title")}</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">{l(mushaf.name)}</h1>
-        {!isAr && (
-          <p lang="ar" className="font-arabic mt-1 text-xl text-muted-foreground">
-            {mushaf.name.ar}
-          </p>
-        )}
-        <div className="mt-5 flex items-baseline justify-between gap-3">
-          <p className="text-sm">
-            <span className="text-2xl font-semibold tabular-nums">{num(memorized)}</span>
-            <span className="text-muted-foreground"> / {t("quran.ayahs", { count: mushaf.ayahs })}</span>
-          </p>
-          <p className="tint-fg text-sm font-medium tabular-nums">{num(Math.floor(pct * 10) / 10)}%</p>
+      {/* Kept small: the title, and the progress on one line that opens onto the totals. Logging comes first. */}
+      <header className="tint-border relative overflow-hidden rounded-3xl border bg-card bg-[radial-gradient(100%_140%_at_0%_0%,oklch(0.3_0.06_var(--hue)/0.5),transparent_60%)] p-4 sm:p-5 rtl:bg-[radial-gradient(100%_140%_at_100%_0%,oklch(0.3_0.06_var(--hue)/0.5),transparent_60%)]">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight">{l(section.name)}</h1>
+          <RiwayahSwitch current={mushaf.id} to={(id) => href("/hifz/:mushafId", { mushafId: id })} />
         </div>
-        <Progress value={pct} className="tint-bg *:tint-solid mt-2 h-2" />
-        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-          <span>{t("hifz.surahsComplete", { count: complete })}</span>
-          <span className={cn(weak > 0 && "text-amber-500")}>{t("hifz.weakCount", { count: weak })}</span>
-          <span className={cn(transitions > 0 && "text-amber-500")}>{t("hifz.transitionCount", { count: transitions })}</span>
-        </p>
+        <Collapsible open={summaryOpen} onOpenChange={setSummaryOpen}>
+          <CollapsibleTrigger
+            aria-label={t("hifz.summary")}
+            className="group mt-3 flex w-full min-w-0 items-center gap-2.5 rounded-lg py-1 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <Progress value={pct} className="tint-bg *:tint-solid h-1.5 min-w-0 flex-1" />
+            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+              {num(memorized)} / {num(mushaf.ayahs)} · <span className="tint-fg font-medium">{num(Math.floor(pct * 10) / 10)}%</span>
+            </span>
+            {weak + transitions > 0 && (
+              <span className="inline-flex shrink-0 items-center gap-1 text-xs text-amber-500 tabular-nums">
+                <Flag className="size-3" />
+                {num(weak + transitions)}
+              </span>
+            )}
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+              <span>{t("hifz.memorizedOf", { n: num(memorized), total: num(mushaf.ayahs) })}</span>
+              <span>{t("hifz.surahsComplete", { count: complete })}</span>
+              <span className={cn(weak > 0 && "text-amber-500")}>{t("hifz.weakCount", { count: weak })}</span>
+              <span className={cn(transitions > 0 && "text-amber-500")}>{t("hifz.transitionCount", { count: transitions })}</span>
+            </p>
+          </CollapsibleContent>
+        </Collapsible>
       </header>
 
       <LogPanel mushafId={mushaf.id} hue={mushaf.hue} layout={layout} riwayah={riwayah} onLogged={setLogged} />
 
       <Tabs defaultValue="surahs" dir={isAr ? "rtl" : "ltr"}>
-        <TabsList>
+        <TabsList data-guide="hifz-tabs">
           <TabsTrigger value="surahs">{t("quran.surahsTitle")}</TabsTrigger>
           <TabsTrigger value="weak">
             {t("hifz.weakSpots")}
@@ -577,6 +619,17 @@ export default function HifzPage({ loaderData }: Route.ComponentProps) {
           <History mushaf={mushaf} layout={layout} riwayah={riwayah} />
         </TabsContent>
       </Tabs>
+      {/* First visit: how to log, revise and flag. */}
+      <CoachMarks
+        storageKey="islamic-studies:hifz-guide:v1"
+        hue={mushaf.hue}
+        steps={[
+          { id: "new", target: () => visible("[data-guide='hifz-new']"), title: t("hifzGuide.newTitle"), body: t("hifzGuide.new") },
+          { id: "revise", target: () => visible("[data-guide='hifz-revise']"), title: t("hifzGuide.reviseTitle"), body: t("hifzGuide.revise") },
+          { id: "queue", target: () => visible("[data-guide='hifz-queue']"), title: t("hifzGuide.queueTitle"), body: t("hifzGuide.queue") },
+          { id: "tabs", target: () => visible("[data-guide='hifz-tabs']"), title: t("hifzGuide.tabsTitle"), body: t("hifzGuide.tabs") },
+        ]}
+      />
       {/* Keyed, so a new log restarts its timer. */}
       <UndoToast key={logged?.message} logged={logged} onDone={dismiss} />
     </div>

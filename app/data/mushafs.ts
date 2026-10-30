@@ -9,6 +9,8 @@ export type MushafId = "hafs" | "warsh";
 export type Mushaf = {
   id: MushafId;
   name: Localized;
+  /** Just the transmitter's name, for the riwayah switch. */
+  short: Localized;
   description: Localized;
   hue: number;
   /** Totals of the whole text, shown on its card (Warsh counts the ayat the Madinan way). */
@@ -22,6 +24,7 @@ export const mushafs: Mushaf[] = [
   {
     id: "hafs",
     name: L("رواية حفص عن عاصم", "Ḥafṣ ʿan ʿĀṣim", "Ḥafṣ ʿan ʿĀṣim"),
+    short: L("حفص", "Ḥafṣ", "Ḥafṣ"),
     description: L(
       "الرواية الأكثر انتشاراً في العالم الإسلامي.",
       "The most widely read riwayah in the Muslim world.",
@@ -34,6 +37,7 @@ export const mushafs: Mushaf[] = [
   {
     id: "warsh",
     name: L("رواية ورش عن نافع", "Warsh ʿan Nāfiʿ", "Warsh ʿan Nāfiʿ"),
+    short: L("ورش", "Warsh", "Warsh"),
     description: L(
       "رواية أهل المغرب العربي وغرب إفريقيا.",
       "The riwayah of the Maghreb and West Africa.",

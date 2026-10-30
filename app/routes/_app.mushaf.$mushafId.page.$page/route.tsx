@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { data, href, Link, useLocation, useNavigate, useNavigation } from "react-router";
 import { AyahActions, type SelectedAyah } from "~/components/ayah-actions";
 import { BackLink } from "~/components/back-link";
+import { MushafGuide } from "~/components/mushaf-guide";
 import { QuranSearchDialog } from "~/components/quran-search";
 import { getPage, pageCount } from "~/data/mushaf.server";
 import { getTafsir } from "~/data/tafsir.server";
@@ -246,6 +247,7 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
         <BackLink to={back}>{l(mushaf.name)}</BackLink>
         <button
           type="button"
+          data-guide="search"
           onClick={() => setSearching(true)}
           className="inline-flex items-center gap-2 rounded-full border bg-card/60 py-1.5 ps-3 pe-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
@@ -270,6 +272,7 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
         </p>
         <button
           type="button"
+          data-guide="search"
           onClick={() => setSearching(true)}
           aria-label={t("search.button")}
           className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -343,7 +346,6 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
                         hafs: a.hafs,
                         hafsAyahs: a.hafsAyahs,
                         words,
-                        last: s.closes && a === s.ayahs.at(-1),
                         tafsir: tafsir[`${s.surah}:${a.n}`] ?? {},
                       };
                       const isSelected = selected?.surah === s.surah && selected.n === a.n;
@@ -388,7 +390,7 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
       </article>
 
       {/* Laid out like the mushaf: previous page on the right, next on the left. */}
-      <nav dir="rtl" className="flex items-center justify-between gap-3 max-lg:hidden">
+      <nav dir="rtl" data-guide="pages" className="flex items-center justify-between gap-3 max-lg:hidden">
         {pageLink(prev, "prev", false)}
         <span dir="ltr" title={t("mushaf.pageOf", { n: num(page), total: num(pages) })} className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
           {num(page)} / {num(pages)}
@@ -396,13 +398,16 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
         {pageLink(next, "next", false)}
       </nav>
       {/* Phone: small turn buttons around the page number (swiping turns pages too). */}
-      <nav dir="rtl" className="flex shrink-0 items-center justify-between lg:hidden">
+      <nav dir="rtl" data-guide="pages" className="flex shrink-0 items-center justify-between lg:hidden">
         {pageLink(prev, "prev", true)}
         <span className="font-arabic text-sm text-muted-foreground" title={t("mushaf.pageOf", { n: num(page), total: num(pages) })}>
           {mushafNumber(page, isAr)}
         </span>
         {pageLink(next, "next", true)}
       </nav>
+
+      {/* First visit: what can be done here. */}
+      <MushafGuide hue={mushaf.hue} searching={searching} ayahOpen={!!selection} />
 
       {selection && selected && <AyahActions mushaf={mushaf} ayah={selected} side={selection.side} anchor={selection.anchor} onClose={closeAyah} />}
 

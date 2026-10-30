@@ -10,7 +10,7 @@ import { useLocalize } from "~/lib/localize";
  * the page bring the next one, then meet the reorder button.
  *  - "tap":  the first unfinished dhikr; moves on by itself once its count is reached.
  *  - "next": the dhikr the page scrolled to.
- *  - "menu": the same card, pointing at its ⇅ reorder button.
+ *  - "menu": the page's header, pointing at its ⇅ reorder button.
  */
 export type GuideStep = "tap" | "next" | "menu";
 export const GUIDE_STEPS: GuideStep[] = ["tap", "next", "menu"];

@@ -164,10 +164,10 @@ export function LogPanel({
   const icon = "flex size-9 items-center justify-center rounded-full";
   return (
     <section className="rounded-3xl border bg-card p-4 sm:p-5">
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className="font-semibold">{t("hifz.logTitle")}</h2>
         {todayAyahs > 0 && (
-          <span className="tint-fg inline-flex items-center gap-1 text-xs tabular-nums">
+          <span className="tint-fg inline-flex items-center gap-1 text-xs whitespace-nowrap tabular-nums">
             <Check className="size-3.5" />
             {t("hifz.todayAyahs", { count: todayAyahs })}
           </span>
@@ -176,21 +176,23 @@ export function LogPanel({
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button
           type="button"
+          data-guide="hifz-new"
           onClick={() => setDraft({ kind: "memorized", target: surahTarget("memorized", next.surah, riwayah, pages) })}
-          className={cn(tile, "tint-border tint-bg hover:bg-[oklch(0.75_0.12_var(--hue)/0.18)]")}
+          className={cn(tile, "hover:bg-accent")}
         >
-          <span className={cn(icon, "tint-solid text-[oklch(0.2_0.04_var(--hue))]")}>
+          <span className={cn(icon, "border")}>
             <BookCheck className="size-4.5" />
           </span>
-          <span className="min-w-0">
+          <span className="w-full min-w-0">
             <span className="block font-medium">{t("hifz.newMemorization")}</span>
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+            <span className="mt-0.5 block text-xs leading-snug break-words text-muted-foreground">
               {t("hifz.nextUp", { what: `${surahName(next.surah)} ${num(next.n)}` })}
             </span>
           </span>
         </button>
         <button
           type="button"
+          data-guide="hifz-revise"
           onClick={() =>
             setDraft({ kind: "revised", target: surahTarget("revised", queue[0]?.n ?? next.surah, riwayah, pages) })
           }
@@ -199,9 +201,9 @@ export function LogPanel({
           <span className={cn(icon, "border")}>
             <RotateCcw className="size-4.5" />
           </span>
-          <span className="min-w-0">
+          <span className="w-full min-w-0">
             <span className="block font-medium">{t("hifz.revision")}</span>
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+            <span className="mt-0.5 block text-xs leading-snug break-words text-muted-foreground">
               {queue[0] ? t("hifz.mostDue", { what: surahName(queue[0].n) }) : t("hifz.pickToRevise")}
             </span>
           </span>
@@ -209,7 +211,7 @@ export function LogPanel({
       </div>
 
       {waiting.length > 0 && (
-        <div className="mt-4">
+        <div data-guide="hifz-queue" className="mt-4">
           <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("hifz.toRevise")}</h3>
           <ul className="mt-1 divide-y">
             {waiting.map((s) => {
@@ -484,8 +486,9 @@ function SheetBody({
 
           <div className="shrink-0 space-y-3 border-t px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] sm:px-5 sm:pb-4">
             <DayChips when={when} setWhen={setWhen} lang={lang} />
-            <div className="flex items-center gap-3">
-              <p className="min-w-0 flex-1 text-sm">
+            {/* The button drops under the summary when a long label (French) leaves it too little room. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="min-w-28 flex-1 text-sm">
                 <span className="block truncate font-medium">{what}</span>
                 <span className="block text-xs text-muted-foreground">{t("hifz.rangeSize", { count })}</span>
               </p>
@@ -493,7 +496,7 @@ function SheetBody({
                 type="button"
                 onClick={save}
                 className={cn(
-                  "inline-flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-[scale,filter] hover:brightness-110 active:scale-95",
+                  "ms-auto inline-flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-[scale,filter] hover:brightness-110 active:scale-95",
                   kind === "memorized" ? "tint-solid text-[oklch(0.2_0.04_var(--hue))]" : "bg-foreground text-background",
                 )}
               >

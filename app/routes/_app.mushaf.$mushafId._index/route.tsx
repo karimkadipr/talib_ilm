@@ -4,7 +4,8 @@ import { useState } from "react";
 import { data, href, Link } from "react-router";
 import { BackLink } from "~/components/back-link";
 import { QuranSearchInput, QuranSearchResults } from "~/components/quran-search";
-import { categoryOf } from "~/data/categories";
+import { RiwayahSwitch } from "~/components/riwayah-switch";
+import { categoryOf, itemInfo } from "~/data/categories";
 import { getMushafText } from "~/data/mushaf.server";
 import { getMushaf, mushafSource } from "~/data/mushafs";
 import { surahs } from "~/data/surahs";
@@ -21,7 +22,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   const text = getMushafText(mushaf.id);
   return {
     mushafId: mushaf.id,
-    meta: seo(context, [localizer(context).l(mushaf.name)]),
+    meta: seo(context, [localizer(context).l(categoryOf("mushaf", mushaf.id)!.name), localizer(context).l(mushaf.short)]),
     // Per surah: its ayah count in this riwayah and the mushaf page it opens on.
     surahs: text.map((s) => ({ ayahs: s.ayahs.length, page: s.ayahs[0].page })),
   };
@@ -33,7 +34,9 @@ export function meta({ loaderData }: Route.MetaArgs) {
 
 export default function MushafPage({ loaderData }: Route.ComponentProps) {
   const mushaf = getMushaf(loaderData.mushafId)!;
-  const category = categoryOf("mushaf", mushaf.id);
+  // Tafsīr, under the Qur'an (whose page the back link leads to: Tafsīr's own opens this one).
+  const section = categoryOf("mushaf", mushaf.id)!;
+  const parent = categoryOf("category", section.id);
   const { l, t, num, isAr } = useLocalize();
   const [query, setQuery] = useState("");
   const lastPage = useMushafPage(mushaf.id);
@@ -41,19 +44,21 @@ export default function MushafPage({ loaderData }: Route.ComponentProps) {
 
   return (
     <div style={{ "--hue": mushaf.hue } as React.CSSProperties} className="mx-auto max-w-3xl space-y-6">
-      {category && <BackLink to={`/categories/${category.id}`}>{l(category.name)}</BackLink>}
+      {parent && <BackLink to={itemInfo({ kind: "category", id: parent.id }).to}>{l(parent.name)}</BackLink>}
 
       <header className="tint-border relative overflow-hidden rounded-3xl border bg-card bg-[radial-gradient(100%_140%_at_0%_0%,oklch(0.3_0.06_var(--hue)/0.5),transparent_60%)] p-6 sm:p-8 rtl:bg-[radial-gradient(100%_140%_at_100%_0%,oklch(0.3_0.06_var(--hue)/0.5),transparent_60%)]">
         <div className="bg-khatam pointer-events-none absolute inset-0 mask-[linear-gradient(to_right,black,transparent_70%)] rtl:mask-[linear-gradient(to_left,black,transparent_70%)]" />
         <div className="relative">
-          <h1 className="text-3xl font-semibold tracking-tight">{l(mushaf.name)}</h1>
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight">{l(section.name)}</h1>
+            <RiwayahSwitch current={mushaf.id} to={(id) => href("/mushaf/:mushafId", { mushafId: id })} />
+          </div>
           {!isAr && (
             <p lang="ar" className="font-arabic mt-1 text-xl text-muted-foreground">
-              {mushaf.name.ar}
+              {section.name.ar}
             </p>
           )}
-          <p className="mt-3 text-sm text-muted-foreground">{l(mushaf.description)}</p>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-3 text-sm text-muted-foreground">
             <span className="whitespace-nowrap">{t("quran.surahs", { count: surahs.length })}</span> ·{" "}
             <span className="whitespace-nowrap">{t("quran.ayahs", { count: mushaf.ayahs })}</span> ·{" "}
             <span className="whitespace-nowrap">{t("mushaf.pageCount", { count: mushaf.pages })}</span>

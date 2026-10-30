@@ -1,10 +1,9 @@
 import { cn } from "cn";
-import { ArrowUpRight, BookCheck, Check, Copy, Flag, Link2Off, Maximize2, Minimize2, X } from "lucide-react";
+import { ArrowUpRight, Check, Copy, Maximize2, Minimize2, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { href } from "react-router";
 import { englishTafsirUrl, type Mushaf, type Tafsir, type TafsirPart, tafsirs, tafsirUrl } from "~/data/mushafs";
 import { surahs } from "~/data/surahs";
-import { ayahKey, hifz, useHifz } from "~/lib/hifz";
 import { useLocalize } from "~/lib/localize";
 
 export type SelectedAyah = {
@@ -16,8 +15,6 @@ export type SelectedAyah = {
   hafsAyahs: number[];
   /** The ayah's words, without its number. */
   words: string;
-  /** The surah's last ayah (it has no transition into a next one). */
-  last: boolean;
   /** The in-app tafsirs sent with the page (by tafsir id); the others are fetched. */
   tafsir: Record<string, TafsirPart[]>;
 };
@@ -111,10 +108,6 @@ export function AyahActions({
   const { l, t, num, isAr } = useLocalize();
   const [copied, setCopied] = useState(false);
   const surah = surahs[ayah.surah - 1];
-  const record = useHifz(mushaf.id).ayahs[ayahKey(ayah.surah, ayah.n)] ?? {};
-  const memorized = record.m !== undefined;
-  const hifzToggle = "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors";
-  const weakOn = "border-amber-500/40 bg-amber-500/10 text-amber-500";
   const panel = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
 
@@ -333,42 +326,6 @@ export function AyahActions({
           <p role="status" className="tint-fg -mt-1 text-xs">
             {t("mushaf.copied")}
           </p>
-        )}
-      </div>
-
-      {/* Memorization, marked while reading: memorized, a weak ayah, a weak way into the next one. */}
-      <div className="mt-2.5 flex shrink-0 flex-wrap gap-1.5">
-        <button
-          type="button"
-          aria-pressed={memorized}
-          onClick={() =>
-            memorized ? hifz.forget(mushaf.id, ayah.surah, ayah.n, ayah.n) : hifz.log(mushaf.id, "memorized", ayah.surah, ayah.n, ayah.n)
-          }
-          className={cn(hifzToggle, memorized ? "tint-bg tint-fg tint-border" : "text-muted-foreground hover:text-foreground")}
-        >
-          <BookCheck className="size-3.5" />
-          {t("hifz.memorized")}
-        </button>
-        <button
-          type="button"
-          aria-pressed={!!record.w}
-          onClick={() => hifz.setWeak(mushaf.id, ayah.surah, ayah.n, !record.w)}
-          className={cn(hifzToggle, record.w ? weakOn : "text-muted-foreground hover:text-foreground")}
-        >
-          <Flag className="size-3.5" />
-          {t("hifz.weakAyah")}
-        </button>
-        {!ayah.last && (
-          <button
-            type="button"
-            aria-pressed={!!record.t}
-            onClick={() => hifz.setWeakTransition(mushaf.id, ayah.surah, ayah.n, !record.t)}
-            title={t("hifz.weakTransitionTo", { n: num(ayah.n + 1) })}
-            className={cn(hifzToggle, record.t ? weakOn : "text-muted-foreground hover:text-foreground")}
-          >
-            <Link2Off className="size-3.5" />
-            {t("hifz.weakTransition")}
-          </button>
         )}
       </div>
 
