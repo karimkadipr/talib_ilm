@@ -2,6 +2,7 @@ import { Download, FileWarning, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "~/components/ui/dialog";
+import { InstallSection } from "~/components/install-prompt";
 import { type Backup, downloadBackup, readBackup, restoreBackup, summarize } from "~/lib/backup";
 import { useLocalize } from "~/lib/localize";
 import { usePreferences } from "~/lib/preferences";
@@ -19,7 +20,12 @@ export function SettingsDialog({ trigger }: { trigger: React.ReactNode }) {
           <DialogDescription>{t("shell.storageNotice")}</DialogDescription>
         </DialogHeader>
         {/* Remounted on each opening, so a file picked earlier doesn't linger. */}
-        {open && <BackupSection />}
+        {open && (
+          <>
+            <InstallSection />
+            <BackupSection />
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -79,6 +85,7 @@ function BackupSection() {
             <li>{t("settings.books", { count: summary.books })}</li>
             <li>{t("settings.favorites", { count: summary.favorites })}</li>
             <li>{t("settings.notes", { count: summary.notes })}</li>
+            <li>{t("settings.memorized", { count: summary.memorized })}</li>
           </ul>
           <p className="text-muted-foreground">{t("settings.replaceWarning")}</p>
           <div className="flex flex-wrap gap-2">

@@ -15,6 +15,8 @@ function stats(category: Category, t: T): string[] {
   }
   if (kinds.has("reciter")) return [t("home.reciters", { count: n })];
   if (kinds.has("mushaf")) return [t("home.riwayat", { count: n })];
+  // The reader's own progress, not something the section holds.
+  if (kinds.has("hifz")) return [];
   return [t("home.collections", { count: n })];
 }
 

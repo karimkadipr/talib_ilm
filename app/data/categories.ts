@@ -1,7 +1,8 @@
 // Sections of the site, shown in the sidebar. Each lists its pages: the sciences of the curriculum
 // ("Seeking Knowledge"), collections of adhkār, Qur'an reciters, or the Qur'an's text in each riwayah
-// with its tafsir. A section can also hold sub-sections (the Qur'an: its recitations and its tafsir),
-// which are listed under it rather than at the top level. More categories can be added here.
+// with its tafsir, or the reader's memorization in each riwayah. A section can also hold sub-sections
+// (the Qur'an: its recitations, its tafsir and memorization), which are listed under it rather than at
+// the top level. More categories can be added here.
 
 import { href } from "react-router";
 import { getAdhkarCollection } from "./adhkar";
@@ -14,6 +15,8 @@ export type CategoryItem =
   | { kind: "adhkar"; id: string }
   | { kind: "reciter"; id: string }
   | { kind: "mushaf"; id: string }
+  /** The reader's memorization in a riwayah (its id is the mushaf's). */
+  | { kind: "hifz"; id: string }
   | { kind: "category"; id: string };
 
 export type Category = {
@@ -69,6 +72,7 @@ export const categories: Category[] = [
     items: [
       { kind: "category", id: "recitation" },
       { kind: "category", id: "tafsir" },
+      { kind: "category", id: "hifz" },
     ],
   },
   {
@@ -92,6 +96,17 @@ export const categories: Category[] = [
       "Le muṣḥaf complet selon les riwāyat de Ḥafṣ et de Warsh, tel qu'écrit dans le muṣḥaf de Médine : touchez un verset pour son tafsīr.",
     ),
     items: mushafs.map((m) => ({ kind: "mushaf", id: m.id })),
+  },
+  {
+    id: "hifz",
+    name: L("الحفظ", "Memorization", "Mémorisation"),
+    hue: 330,
+    description: L(
+      "سجّل ما حفظته من القرآن ومتى راجعته آخر مرة، وعلّم الآيات والانتقالات بين الآيات التي تحتاج إلى تثبيت.",
+      "Track what you've memorized of the Qur'ān and when you last revised it, and flag the ayahs and the transitions between ayahs that need work.",
+      "Suivez ce que vous avez mémorisé du Coran et votre dernière révision, et signalez les versets et les transitions entre versets à consolider.",
+    ),
+    items: mushafs.map((m) => ({ kind: "hifz", id: m.id })),
   },
 ];
 
@@ -134,6 +149,10 @@ export function itemInfo(item: CategoryItem): { name: Localized; to: string; hue
   if (item.kind === "mushaf") {
     const m = getMushaf(item.id)!;
     return { name: m.name, to: href("/mushaf/:mushafId", { mushafId: m.id }), hue: m.hue };
+  }
+  if (item.kind === "hifz") {
+    const m = getMushaf(item.id)!;
+    return { name: m.name, to: href("/hifz/:mushafId", { mushafId: m.id }), hue: m.hue };
   }
   const c = getAdhkarCollection(item.id)!;
   return { name: c.name, to: href("/adhkar/:collectionId", { collectionId: c.id }), hue: c.hue };

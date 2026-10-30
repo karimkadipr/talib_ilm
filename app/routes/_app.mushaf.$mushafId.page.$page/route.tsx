@@ -133,13 +133,15 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
   const location = useLocation();
   // Which way the last turn went, so the new page slides in from the side it was turned from.
   const turn = (location.state as { turn?: Turn } | null)?.turn;
-  // The ayah a search (or a link) opened the page at, lit up for a moment: #ayah-<surah>-<n>.
-  const target = location.hash.match(/^#ayah-(\d+)-(\d+)$/);
+  // The ayah a search (or a link) opened the page at, lit up for a moment: #ayah-<surah>-<n>. Read
+  // once in the browser, since the server never sees the hash (its HTML would differ).
+  const [target, setTarget] = useState<{ surah: number; n: number; visit: string } | null>(null);
   const [searching, setSearching] = useState(false);
   useEffect(() => {
-    if (!target) return;
+    const m = location.hash.match(/^#ayah-(\d+)-(\d+)$/);
+    setTarget(m ? { surah: Number(m[1]), n: Number(m[2]), visit: location.key } : null);
     // On wide screens the page scrolls: bring the ayah to the middle (a phone's page always fits).
-    if (!window.matchMedia(PHONE).matches)
+    if (m && !window.matchMedia(PHONE).matches)
       document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: "center", behavior: "smooth" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key]);
@@ -341,13 +343,14 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
                         hafs: a.hafs,
                         hafsAyahs: a.hafsAyahs,
                         words,
+                        last: s.closes && a === s.ayahs.at(-1),
                         tafsir: tafsir[`${s.surah}:${a.n}`] ?? {},
                       };
                       const isSelected = selected?.surah === s.surah && selected.n === a.n;
-                      const isTarget = !!target && Number(target[1]) === s.surah && Number(target[2]) === a.n;
+                      const isTarget = target?.surah === s.surah && target.n === a.n;
                       return (
                         // Keyed by the visit too, so searching for the same ayah again lights it up again.
-                        <span key={isTarget ? `${a.n}:${location.key}` : a.n}>
+                        <span key={isTarget ? `${a.n}:${target.visit}` : a.n}>
                           {/* Tapping an ayah selects it and opens its actions (tafsir, copy). */}
                           <span
                             id={`ayah-${s.surah}-${a.n}`}

@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 // Backup and restore of everything the app keeps for the listener: every localStorage entry under
-// PREFIX (progress, lesson and book notes, bookmarks, favorites, adhkār, playback positions, reader
-// and player settings), plus the display preferences and language, which live in cookies. A backup
-// is one JSON file; restoring replaces what this browser has, then the page reloads so every store
-// reads it afresh.
+// PREFIX (progress, lesson and book notes, bookmarks, favorites, adhkār, Qur'an memorization,
+// playback positions, reader and player settings), plus the display preferences and language, which
+// live in cookies. A backup is one JSON file; restoring replaces what this browser has, then the page
+// reloads so every store reads it afresh.
 
 const PREFIX = "islamic-studies:";
 
@@ -67,7 +67,14 @@ export function summarize(backup: Backup) {
   const progress = json("progress:v1");
   const favorites = json("quran-favorites:v1");
   const bookNotes = json("book-notes:v1");
+  const hifz = json("hifz:v1");
   return {
+    // Across riwayat (each numbers its ayat its own way).
+    memorized: Object.values(hifz ?? {}).reduce<number>(
+      (n, r) =>
+        n + Object.values((r as { ayahs?: Record<string, { m?: number }> })?.ayahs ?? {}).filter((a) => a?.m !== undefined).length,
+      0,
+    ),
     lessons: count(progress?.watched),
     books: Object.values(progress?.books ?? {}).filter((s) => s === "done").length,
     favorites: Object.values(favorites ?? {}).reduce<number>((n, list) => n + (Array.isArray(list) ? list.length : 0), 0),

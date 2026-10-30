@@ -1,4 +1,4 @@
-import { AudioLines, BookOpen, BookOpenText, ScrollText } from "lucide-react";
+import { AudioLines, BookCheck, BookOpen, BookOpenText, ScrollText } from "lucide-react";
 import { DuaHandsIcon } from "~/components/dua-hands-icon";
 
 const icons: Record<string, typeof BookOpen> = {
@@ -6,6 +6,7 @@ const icons: Record<string, typeof BookOpen> = {
   quran: BookOpenText,
   recitation: AudioLines,
   tafsir: ScrollText,
+  hifz: BookCheck,
 };
 
 /** The icon of a category (sidebar, tab bar, home page, a section's sub-section cards). */

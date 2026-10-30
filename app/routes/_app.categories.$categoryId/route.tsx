@@ -13,6 +13,7 @@ import { BackLink } from "~/components/back-link";
 import { CategoryIcon } from "~/components/category-icon";
 import { categoryOf, getCategory, itemInfo } from "~/data/categories";
 import { useCategoryStats } from "~/lib/category-stats";
+import { hifzTotals, useHifz } from "~/lib/hifz";
 import { countBooks, getSubject, type Subject } from "~/data/curriculum";
 import { seriesForBook } from "~/data/explanations";
 import { getMushaf } from "~/data/mushafs";
@@ -189,6 +190,41 @@ function MushafCard({ id }: { id: string }) {
   );
 }
 
+/** The reader's memorization in a riwayah: how much of it, and what's flagged. */
+function HifzCard({ id }: { id: string }) {
+  const mushaf = getMushaf(id)!;
+  const { l, t, num, isAr } = useLocalize();
+  const totals = hifzTotals(useHifz(id));
+  const exact = (totals.memorized / mushaf.ayahs) * 100;
+  // A tenth of a percent while it's small, so the first ayat already show.
+  const pct = exact < 10 ? Math.floor(exact * 10) / 10 : Math.floor(exact);
+  return (
+    <Link
+      to={itemInfo({ kind: "hifz", id }).to}
+      style={{ "--hue": mushaf.hue } as React.CSSProperties}
+      className="group flex items-center gap-4 rounded-2xl border bg-card p-4 transition-colors hover:bg-accent/50"
+    >
+      <ProgressRing value={exact} className="tint-fg">
+        <span className="text-foreground tabular-nums">{num(pct)}%</span>
+      </ProgressRing>
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">{l(mushaf.name)}</p>
+        {!isAr && (
+          <p lang="ar" className="font-arabic text-sm text-muted-foreground">
+            {mushaf.name.ar}
+          </p>
+        )}
+        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>{t("hifz.memorizedOf", { n: num(totals.memorized), total: num(mushaf.ayahs) })}</span>
+          {totals.weak + totals.transitions > 0 && (
+            <span className="text-amber-500">{t("hifz.flagged", { count: totals.weak + totals.transitions })}</span>
+          )}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
 /** A sub-section of this section (e.g. the Qur'an's recitations or its tafsir). */
 function SectionCard({ id }: { id: string }) {
   const section = getCategory(id)!;
@@ -210,7 +246,9 @@ function SectionCard({ id }: { id: string }) {
             {section.name.ar}
           </p>
         )}
-        <p className="mt-1.5 text-xs text-muted-foreground">{stats.join(" · ")}</p>
+        <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">
+          {stats.length ? stats.join(" · ") : l(section.description)}
+        </p>
       </div>
     </Link>
   );
@@ -359,6 +397,8 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
           <MushafCard key={item.id} id={item.id} />
         ) : item.kind === "category" ? (
           <SectionCard key={item.id} id={item.id} />
+        ) : item.kind === "hifz" ? (
+          <HifzCard key={item.id} id={item.id} />
         ) : (
           <AdhkarCard key={item.id} id={item.id} counts={loaderData.adhkarCounts[item.id] ?? []} />
         ),
@@ -415,7 +455,7 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
           <h2 className="mb-4 text-lg font-semibold">
             {category.items.every((i) => i.kind === "subject")
               ? t("category.sciences")
-              : category.items.every((i) => i.kind === "mushaf")
+              : category.items.every((i) => i.kind === "mushaf" || i.kind === "hifz")
                 ? t("category.riwayat")
                 : category.items.every((i) => i.kind === "category")
                   ? t("category.sections")
