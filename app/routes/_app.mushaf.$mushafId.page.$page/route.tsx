@@ -6,7 +6,7 @@ import { AyahActions, type SelectedAyah } from "~/components/ayah-actions";
 import { BackLink } from "~/components/back-link";
 import { MushafGuide } from "~/components/mushaf-guide";
 import { QuranSearchDialog } from "~/components/quran-search";
-import { getPage, pageCount } from "~/data/mushaf.server";
+import { ayahWords, getAyah, getPageLines, pageCount } from "~/data/mushaf.server";
 import { getTafsir } from "~/data/tafsir.server";
 import { getMushaf, mushafSource, type TafsirPart, tafsirs } from "~/data/mushafs";
 import { surahs } from "~/data/surahs";
@@ -19,23 +19,36 @@ import type { Route } from "./+types/route";
 export async function loader({ params, context }: Route.LoaderArgs) {
   const mushaf = getMushaf(params.mushafId);
   const page = Number(params.page);
-  const sections = mushaf && Number.isInteger(page) && page >= 1 ? getPage(mushaf.id, page) : undefined;
-  if (!mushaf || !sections) throw data(null, { status: 404 });
+  const rows = mushaf && Number.isInteger(page) && page >= 1 ? getPageLines(mushaf.id, page) : undefined;
+  if (!mushaf || !rows) throw data(null, { status: 404 });
   const { l, num, t } = localizer(context);
-  // The short in-app tafsirs of each ayah on the page (by "surah:ayah", then tafsir), ready for a tap.
-  const tafsir: Record<string, Record<string, TafsirPart[]>> = {};
-  for (const s of sections)
-    for (const a of s.ayahs)
-      tafsir[`${s.surah}:${a.n}`] = Object.fromEntries(
-        tafsirs.filter((x) => x.preload).map((x) => [x.id, getTafsir(x.id, s.surah, a.hafsAyahs)]),
-      );
+  // Every ayah with words on the page (one running on from the page before too), by "surah:ayah":
+  // what its panel needs, and its short in-app tafsirs, ready for a tap.
+  const ayahs: Record<string, Omit<SelectedAyah, "surah" | "n"> & { juz: number }> = {};
+  for (const row of rows)
+    if (row.kind === "line")
+      for (const p of row.parts) {
+        const key = `${p.surah}:${p.n}`;
+        if (ayahs[key]) continue;
+        const a = getAyah(mushaf.id, p.surah, p.n)!;
+        ayahs[key] = {
+          hafs: a.hafs,
+          hafsAyahs: a.hafsAyahs,
+          words: ayahWords(a.text).join(" "),
+          juz: a.juz,
+          tafsir: Object.fromEntries(
+            tafsirs.filter((x) => x.preload).map((x): [string, TafsirPart[]] => [x.id, getTafsir(x.id, p.surah, a.hafsAyahs)]),
+          ),
+        };
+      }
+  const firstSurah = rows[0].kind === "surah" ? rows[0].surah : rows.find((r) => r.kind === "line")!.parts[0].surah;
   return {
     mushafId: mushaf.id,
     page,
     pages: pageCount(mushaf.id),
-    sections,
-    tafsir,
-    meta: seo(context, [`${surahs[sections[0].surah - 1].name} · ${t("mushaf.page", { n: num(page) })}`, l(mushaf.name)]),
+    rows,
+    ayahs,
+    meta: seo(context, [`${surahs[firstSurah - 1].name} · ${t("mushaf.page", { n: num(page) })}`, l(mushaf.name)]),
   };
 }
 
@@ -71,47 +84,64 @@ function AyahMark({ n }: { n: number }) {
   );
 }
 
-/** An ayah's text and its closing number (the non-breaking space and digits its font draws as the ayah mark). */
-const AYAH_NUMBER = /^([\s\S]*?)( ?[٠-٩]+)$/;
-
 /** Below lg the page fills the screen, so its text is sized to fit the frame instead of scrolling. */
 const PHONE = "(max-width: 1023.98px)";
+/** Each printed line's height, in em of the text. */
+const LINE = 1.95;
+/** The line width (em) the text is sized for, the same on every page so turning pages keeps it steady:
+ * most pages' lines are narrower (they sit centred), only the widest tenth come out a little smaller. */
+const TYPICAL = 19;
 
 /**
- * Sizes the page's text (in px, everything inside scales with it in em) to the largest that still
- * fits its frame, between 10 and 30, so the page never scrolls; only a screen too short for it even
- * at 10px (a phone on its side) lets it scroll rather than cut the text. Above lg it clears the size
- * and the page keeps its CSS one.
+ * Lays the page out as printed: every line the same width, edge to edge. The font isn't stretched
+ * the way the printed page's letters are, so its lines differ a little in natural width: the text is
+ * set to a width just above the page's usual line (its widest lines squeezed to it, by 8% at most,
+ * the others spread out by their spaces), then sized so a typical line fills the frame, and on phones so
+ * the whole page also fits its height (between 10 and 40px), its lines spread down the frame as on
+ * the printed page. The first two pages' short lines are centred instead, as printed. Measured again
+ * once the font has loaded, and on resize/rotation.
  */
-function useFitToFrame(frame: React.RefObject<HTMLElement | null>, text: React.RefObject<HTMLElement | null>, key: unknown) {
+function usePrintedLines(frame: React.RefObject<HTMLElement | null>, text: React.RefObject<HTMLElement | null>, key: unknown) {
   useLayoutEffect(() => {
     const box = frame.current;
     const el = text.current;
     if (!box || !el) return;
     const phone = window.matchMedia(PHONE);
     const fit = () => {
-      if (!phone.matches) {
-        el.style.fontSize = "";
-        box.style.overflowY = "";
-        return;
-      }
+      const lines = [...el.querySelectorAll<HTMLElement>("[data-line]")];
+      const rows = el.querySelectorAll("[data-row]").length;
+      const opening = rows < 15;
+      // Each line's natural width, in em.
+      el.style.fontSize = "100px";
+      el.dataset.measure = "";
+      const natural = lines.map((l) => l.offsetWidth / 100);
+      delete el.dataset.measure;
+      const sorted = [...natural].sort((a, b) => a - b);
+      const widest = sorted.at(-1) ?? 1;
+      const usual = sorted[Math.floor(sorted.length / 2)] ?? widest;
+      const width = opening ? widest : Math.max(Math.min(widest, usual * 1.08), widest * 0.92);
+
       const s = getComputedStyle(box);
-      const room = box.clientHeight - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom);
-      // Exact heights with a pixel to spare: a rounded one can leave a fraction over, enough to scroll.
-      const fits = () => el.getBoundingClientRect().height <= room - 1;
-      let lo = 10;
-      let hi = 30;
-      for (let i = 0; i < 10; i++) {
-        const mid = (lo + hi) / 2;
-        el.style.fontSize = `${mid}px`;
-        if (fits()) lo = mid;
-        else hi = mid;
-      }
-      el.style.fontSize = `${lo}px`;
-      box.style.overflowY = fits() ? "hidden" : "auto";
+      const roomX = box.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+      const roomY = box.clientHeight - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom);
+      let size = roomX / (opening ? width : Math.max(width, TYPICAL));
+      if (phone.matches) size = Math.min(size, (roomY - 2) / (rows * LINE));
+      size = Math.min(Math.max(size, 10), 40);
+      el.style.fontSize = `${size}px`;
+      el.style.width = `${width}em`;
+      // Lines a little further apart where there's height to spare (not so far they drift apart).
+      const line = phone.matches && !opening ? Math.min(Math.max(LINE, (roomY - 2) / rows / size), LINE * 1.35) : LINE;
+      el.style.setProperty("--line", `${line}em`);
+      lines.forEach((l, i) => {
+        const squeeze = natural[i] > width;
+        l.style.width = squeeze ? `${natural[i]}em` : "";
+        l.style.transform = squeeze ? `scaleX(${width / natural[i]})` : "";
+        // A short line (the end of an-Najm) sits centred rather than spread out.
+        l.style.textAlignLast = natural[i] < width * 0.6 ? "center" : "";
+      });
+      box.style.overflowY = phone.matches && el.offsetHeight > roomY ? "auto" : "";
     };
     fit();
-    // Again once the mushaf font has loaded (its metrics differ from the fallback's), and on resize/rotation.
     document.fonts?.ready.then(fit);
     const ro = new ResizeObserver(fit);
     ro.observe(box);
@@ -127,7 +157,7 @@ type Turn = "next" | "prev";
 
 export default function MushafPageView({ loaderData }: Route.ComponentProps) {
   const mushaf = getMushaf(loaderData.mushafId)!;
-  const { page, pages, sections, tafsir } = loaderData;
+  const { page, pages, rows, ayahs } = loaderData;
   const { l, t, num, isAr } = useLocalize();
   const uiDir = isAr ? "rtl" : "ltr";
   const navigate = useNavigate();
@@ -149,15 +179,15 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
   const touch = useRef<{ x: number; y: number } | null>(null);
   const frame = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLDivElement>(null);
-  useFitToFrame(frame, text, page);
+  usePrintedLines(frame, text, page);
 
   const to = (n: number) => href("/mushaf/:mushafId/page/:page", { mushafId: mushaf.id, page: String(n) });
   const back = href("/mushaf/:mushafId", { mushafId: mushaf.id });
   const prev = page > 1 ? page - 1 : null;
   const next = page < pages ? page + 1 : null;
-  const first = sections[0];
-  const surahName = `سورة ${surahs[first.surah - 1].name}`;
-  const juz = `الجزء ${mushafNumber(first.ayahs[0].juz, isAr)}`;
+  const firstLine = rows.find((r) => r.kind === "line")!.parts[0];
+  const surahName = `سورة ${surahs[(rows[0].kind === "surah" ? rows[0].surah : firstLine.surah) - 1].name}`;
+  const juz = `الجزء ${mushafNumber(ayahs[`${firstLine.surah}:${firstLine.n}`].juz, isAr)}`;
 
   useEffect(() => mushafPosition.set(mushaf.id, page), [mushaf.id, page]);
 
@@ -171,16 +201,21 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
   } | null>(null);
   const selected = selection?.page === page ? selection.ayah : null;
   const closeAyah = useCallback(() => setSelection(null), []);
-  function pick(ayah: SelectedAyah, el: HTMLElement) {
+  function pick(surah: number, n: number) {
     // Selecting words to copy them isn't a tap on the ayah.
     if (window.getSelection()?.toString()) return;
-    if (selected?.surah === ayah.surah && selected.n === ayah.n) return setSelection(null);
-    const r = el.getBoundingClientRect();
+    if (selected?.surah === surah && selected.n === n) return setSelection(null);
+    const key = `${surah}:${n}`;
+    const { juz: _juz, ...rest } = ayahs[key];
+    // An ayah may run over several lines: the panel keeps clear of all of them.
+    const rects = [...document.querySelectorAll(`[data-ayah="${key}"]`)].map((el) => el.getBoundingClientRect());
+    const top = Math.min(...rects.map((r) => r.top));
+    const bottom = Math.max(...rects.map((r) => r.bottom));
     setSelection({
       page,
-      ayah,
-      side: r.top + r.height / 2 > window.innerHeight * 0.55 ? "top" : "bottom",
-      anchor: { top: r.top, bottom: r.bottom },
+      ayah: { surah, n, ...rest },
+      side: (top + bottom) / 2 > window.innerHeight * 0.55 ? "top" : "bottom",
+      anchor: { top, bottom },
     });
   }
 
@@ -233,6 +268,9 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
       </span>
     );
   };
+
+  // The first line of each ayah carries its id (search and links scroll to it).
+  const seen = new Set<string>();
 
   return (
     <div
@@ -316,72 +354,85 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
             ref={frame}
             // Tapping the page anywhere but an ayah puts the selection away.
             onClick={(e) => !(e.target as Element).closest("[data-ayah]") && setSelection(null)}
-            className="tint-border flex min-h-[70dvh] flex-col rounded-[1.4rem] border px-4 py-6 sm:px-10 sm:py-9 max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-hidden max-lg:rounded-[1.25rem] max-lg:px-3 max-lg:py-3 sm:max-lg:px-8"
+            className="tint-border flex flex-col items-center rounded-[1.4rem] border px-4 py-6 sm:px-10 sm:py-9 max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-hidden max-lg:rounded-[1.25rem] max-lg:px-2 max-lg:py-3 sm:max-lg:px-8"
           >
-            {/* Everything below is sized in em from here, so fitting the page scales it all together. */}
-            {/* Centred on a short page (auto margins, unlike justify-center, never clip one that overflows). */}
-            <div ref={text} className="text-[1.45rem] sm:text-[1.7rem] max-lg:my-auto">
-              {sections.map((s) => (
-                <section key={s.surah} id={`surah-${s.surah}`} className="scroll-mt-24">
-                  {s.opens && (
-                    <h2 className="tint-border tint-bg bg-khatam font-arabic relative my-[0.4em] rounded-xl border py-[0.25em] text-[0.75em] text-center! first:mt-0">
-                      سورة {surahs[s.surah - 1].name}
-                    </h2>
-                  )}
-                  {s.basmala && (
-                    <p className="font-uthmani my-[0.3em] text-center text-[1.08em] leading-loose">{s.basmala}</p>
-                  )}
-                  <p
-                    className={cn(
-                      "font-uthmani text-justify leading-[2.2] text-foreground",
-                      // A surah's last lines sit centred, as in print; text running on to the next page stays flush.
-                      s.closes ? "[text-align-last:center]" : "[text-align-last:right]",
-                    )}
-                  >
-                    {s.ayahs.map((a) => {
-                      const [, words, number] = a.text.match(AYAH_NUMBER) ?? [a.text, a.text, ""];
-                      const ayah = {
-                        surah: s.surah,
-                        n: a.n,
-                        hafs: a.hafs,
-                        hafsAyahs: a.hafsAyahs,
-                        words,
-                        tafsir: tafsir[`${s.surah}:${a.n}`] ?? {},
-                      };
-                      const isSelected = selected?.surah === s.surah && selected.n === a.n;
-                      const isTarget = target?.surah === s.surah && target.n === a.n;
-                      return (
-                        // Keyed by the visit too, so searching for the same ayah again lights it up again.
-                        <span key={isTarget ? `${a.n}:${target.visit}` : a.n}>
-                          {/* Tapping an ayah selects it and opens its actions (tafsir, copy). */}
-                          <span
-                            id={`ayah-${s.surah}-${a.n}`}
-                            data-ayah
-                            role="button"
-                            tabIndex={0}
-                            aria-pressed={isSelected}
-                            onClick={(e) => pick(ayah, e.currentTarget)}
-                            onKeyDown={(e) => {
-                              if (e.key !== "Enter" && e.key !== " ") return;
-                              e.preventDefault();
-                              pick(ayah, e.currentTarget);
-                            }}
-                            className={cn(
-                              "cursor-pointer rounded-lg box-decoration-clone transition-colors outline-none hover:bg-white/4 focus-visible:bg-accent/60",
-                              isSelected && "tint-bg hover:tint-bg",
-                              isTarget && !isSelected && "animate-ayah-flash motion-reduce:tint-bg motion-reduce:animate-none",
-                            )}
-                          >
-                            {words}
-                            {/* The ayah mark in the riwayah's colour, so where each ayah ends stands out. */}
-                            <span className="tint-fg">{isAr ? number : <AyahMark n={a.n} />}</span>
-                          </span>{" "}
-                        </span>
-                      );
-                    })}
-                  </p>
-                </section>
-              ))}
+            {/* The page's lines, sized together from here in em (usePrintedLines sets its size and width). */}
+            {/* On phones they're spread over the frame's height, as on the printed page. */}
+            <div
+              ref={text}
+              style={{ "--line": `${LINE}em` } as React.CSSProperties}
+              className={cn(
+                "flex flex-col text-[1.6rem] max-lg:my-auto",
+                // While measuring: each line at its natural width, unsqueezed.
+                "data-measure:**:data-line:w-max! data-measure:**:data-line:transform-none!",
+              )}
+            >
+              {rows.map((row, i) => {
+                if (row.kind === "surah")
+                  return (
+                    <div key={i} data-row className="flex h-(--line) items-center">
+                      <h2
+                        id={`surah-${row.surah}`}
+                        className="tint-border tint-bg bg-khatam font-arabic w-full scroll-mt-24 rounded-xl border py-[0.2em] text-center text-[0.7em] leading-normal"
+                      >
+                        سورة {surahs[row.surah - 1].name}
+                      </h2>
+                    </div>
+                  );
+                if (row.kind === "basmala")
+                  return (
+                    <p key={i} data-row className="font-uthmani flex h-(--line) items-center justify-center leading-none">
+                      {row.text}
+                    </p>
+                  );
+                return (
+                  <div key={i} data-row className="flex h-(--line) items-center">
+                    <p
+                      data-line
+                      className={cn(
+                        "font-uthmani w-full origin-right leading-none whitespace-nowrap text-foreground",
+                        rows.length < 15 ? "text-center" : "text-justify [text-align-last:justify]",
+                      )}
+                    >
+                      {row.parts.map((p, j) => {
+                        const key = `${p.surah}:${p.n}`;
+                        const first = !seen.has(key);
+                        seen.add(key);
+                        const isSelected = selected?.surah === p.surah && selected.n === p.n;
+                        const isTarget = target?.surah === p.surah && target.n === p.n;
+                        return (
+                          <span key={isTarget ? `${j}:${target.visit}` : j}>
+                            {/* Tapping an ayah selects it and opens its actions (tafsir, copy). */}
+                            <span
+                              id={first ? `ayah-${p.surah}-${p.n}` : undefined}
+                              data-ayah={key}
+                              role="button"
+                              tabIndex={first ? 0 : -1}
+                              aria-pressed={isSelected}
+                              onClick={() => pick(p.surah, p.n)}
+                              onKeyDown={(e) => {
+                                if (e.key !== "Enter" && e.key !== " ") return;
+                                e.preventDefault();
+                                pick(p.surah, p.n);
+                              }}
+                              className={cn(
+                                "cursor-pointer rounded-md box-decoration-clone py-[0.2em] transition-colors outline-none hover:bg-white/4 focus-visible:bg-accent/60",
+                                isSelected && "tint-bg hover:tint-bg",
+                                isTarget && !isSelected && "animate-ayah-flash motion-reduce:tint-bg motion-reduce:animate-none",
+                              )}
+                            >
+                              {p.words}
+                              {/* The ayah mark in the riwayah's colour, so where each ayah ends stands out. */}
+                              {p.end && <span className="tint-fg">{isAr ? ` ${p.n.toLocaleString("ar-EG")}` : <AyahMark n={p.n} />}</span>}
+                            </span>
+                            {j < row.parts.length - 1 && " "}
+                          </span>
+                        );
+                      })}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

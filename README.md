@@ -34,6 +34,11 @@ Data:
 - `app/data/mushaf/{hafs,warsh}.md` — the Qur'an's full text in each riwayah (King Fahd Complex
   Uthmanic data, verbatim; format in each file's header), read by `mushaf.server.ts` for the
   Tafsīr section (`/categories/tafsir`, under Qur'ān with Recitation), shown a Madinah-mushaf page at a time (`/mushaf/:mushafId/page/:page`). Both riwayat are drawn in the KFGQPC Uthmanic font in `public/fonts/kfgqpc/`.
+- `app/data/mushaf/{hafs,warsh}.lines.txt` — each page's 15 printed lines (heading, basmala, or a
+  number of words), so pages are laid out line for line as printed. Which lines each ayah starts and
+  ends on comes from the KFGQPC data; Ḥafṣ's breaks inside an ayah from Quran.com's KFGQPC Hafs layout
+  (api.qurancdn.com, mushaf 19, checked against the KFGQPC lines of all 6,236 ayat). Warsh has no such
+  data: its breaks inside an ayah are chosen to make each page's lines even in width in the app's font.
 - `app/data/quran-search/simple-clean.txt` — Tanzil's Ḥafṣ text in everyday spelling (CC BY 3.0,
   verbatim with its notice; credit and link to tanzil.net shown with word results), used only to
   match words typed in the Qur'an search (`quran-search.server.ts`, `/api/loaders/mushaf/:mushafId/search`).

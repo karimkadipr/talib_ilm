@@ -156,3 +156,81 @@ export function pageCount(id: MushafId) {
 export function getPage(id: MushafId, n: number): PageSection[] | undefined {
   return pagesOf(id)[n - 1];
 }
+
+// The page as printed, line by line (./mushaf/<id>.lines.txt, made from the KFGQPC data: each page's
+// rows, a surah heading, a basmala, or a number of words read on through the text). Ḥafṣ breaks its
+// lines exactly where the Madinah mushaf does; Warsh starts and ends each ayah on its printed lines,
+// with the breaks inside an ayah chosen to make the lines even.
+const layouts = import.meta.glob("./mushaf/*.lines.txt", { query: "?raw", import: "default", eager: true }) as Record<
+  string,
+  string
+>;
+
+/** An ayah's words (its number left out), as its lines split them. */
+export function ayahWords(text: string) {
+  const [, words] = text.match(/^([\s\S]*?)( ?[٠-٩]+)$/) ?? [text, text];
+  return words.trim().split(/[\s ]+/);
+}
+
+/** Some words of one ayah on a line; `end` when they're its last (its number follows). */
+export type LinePart = { surah: number; n: number; words: string; end: boolean };
+
+/** A row of a printed page: a surah's heading, its basmala, or a line of text. */
+export type PageRow = { kind: "surah"; surah: number } | { kind: "basmala"; text: string } | { kind: "line"; parts: LinePart[] };
+
+const lined = new Map<MushafId, PageRow[][]>();
+
+function linesOf(id: MushafId) {
+  let pages = lined.get(id);
+  if (pages) return pages;
+  const raw = layouts[`./mushaf/${id}.lines.txt`];
+  if (!raw) throw new Error(`No line layout for the ${id} mushaf`);
+  const text = getMushafText(id);
+  // A cursor through every word of the text: surah, ayah, word.
+  let s = 0;
+  let a = 0;
+  let w = 0;
+  const words = new Map<Ayah, string[]>();
+  pages = raw
+    .split("\n")
+    .filter((l) => l.trim() && !l.startsWith("#"))
+    .map((l) => {
+      let heading = 0;
+      return l.trim().split(" ").map((row): PageRow => {
+        if (row.startsWith("h")) return { kind: "surah", surah: (heading = Number(row.slice(1))) };
+        if (row === "b") return { kind: "basmala", text: text[heading - 1].basmala ?? "" };
+        const parts: LinePart[] = [];
+        for (let left = Number(row); left > 0; ) {
+          const surah = text[s];
+          const ayah = surah.ayahs[a];
+          const all = words.get(ayah) ?? words.set(ayah, ayahWords(ayah.text)).get(ayah)!;
+          const take = Math.min(left, all.length - w);
+          parts.push({ surah: surah.n, n: ayah.n, words: all.slice(w, w + take).join(" "), end: w + take === all.length });
+          left -= take;
+          w += take;
+          if (w === all.length) {
+            w = 0;
+            if (++a === surah.ayahs.length) {
+              a = 0;
+              s++;
+            }
+          }
+        }
+        return { kind: "line", parts };
+      });
+    });
+  // Every word laid out once: a layout out of step with the text would misplace all that follows.
+  if (s !== text.length) throw new Error(`${id}.lines.txt doesn't cover the text (stopped in surah ${s + 1})`);
+  lined.set(id, pages);
+  return pages;
+}
+
+/** One page's rows, top to bottom, or undefined past the last page. */
+export function getPageLines(id: MushafId, n: number): PageRow[] | undefined {
+  return linesOf(id)[n - 1];
+}
+
+/** An ayah of a riwayah by its surah and number. */
+export function getAyah(id: MushafId, surah: number, n: number): Ayah | undefined {
+  return getMushafText(id)[surah - 1]?.ayahs[n - 1];
+}
