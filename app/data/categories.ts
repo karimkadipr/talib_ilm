@@ -1,6 +1,7 @@
-// Top-level sections of the site, shown in the sidebar. Each lists its pages: the sciences of the
-// curriculum ("Seeking Knowledge"), collections of adhkār, Qur'an reciters, or the Qur'an's text in
-// each riwayah with its tafsir. More categories can be added here.
+// Sections of the site, shown in the sidebar. Each lists its pages: the sciences of the curriculum
+// ("Seeking Knowledge"), collections of adhkār, Qur'an reciters, or the Qur'an's text in each riwayah
+// with its tafsir. A section can also hold sub-sections (the Qur'an: its recitations and its tafsir),
+// which are listed under it rather than at the top level. More categories can be added here.
 
 import { href } from "react-router";
 import { getAdhkarCollection } from "./adhkar";
@@ -12,7 +13,8 @@ export type CategoryItem =
   | { kind: "subject"; id: string }
   | { kind: "adhkar"; id: string }
   | { kind: "reciter"; id: string }
-  | { kind: "mushaf"; id: string };
+  | { kind: "mushaf"; id: string }
+  | { kind: "category"; id: string };
 
 export type Category = {
   id: string;
@@ -23,8 +25,6 @@ export type Category = {
   /** Accent of its card on the home page. */
   hue: number;
   items: CategoryItem[];
-  /** List only the category in the sidebar, not its pages (it stays highlighted while one is open). */
-  hideItemsInSidebar?: boolean;
 };
 
 const L = (ar: string, en: string, fr?: string): Localized => ({ ar, en, fr });
@@ -62,6 +62,20 @@ export const categories: Category[] = [
     shortName: L("القرآن", "Qur'ān", "Coran"),
     hue: 190,
     description: L(
+      "تلاوات المصحف كاملاً بأصوات القرّاء، والمصحف بروايتي حفص وورش مع تفسير كل آية.",
+      "Complete recitations of the Qur'ān by its reciters, and the muṣḥaf in the riwayat of Ḥafṣ and Warsh with the tafsīr of every ayah.",
+      "Des récitations complètes du Coran par ses récitateurs, et le muṣḥaf selon les riwāyat de Ḥafṣ et de Warsh avec le tafsīr de chaque verset.",
+    ),
+    items: [
+      { kind: "category", id: "recitation" },
+      { kind: "category", id: "tafsir" },
+    ],
+  },
+  {
+    id: "recitation",
+    name: L("التلاوة", "Recitation", "Récitation"),
+    hue: 190,
+    description: L(
       "تلاوات المصحف كاملاً بأصوات القرّاء، سورةً سورة.",
       "Complete recitations of the Qur'ān by its reciters, surah by surah.",
       "Des récitations complètes du Coran par ses récitateurs, sourate par sourate.",
@@ -70,8 +84,7 @@ export const categories: Category[] = [
   },
   {
     id: "tafsir",
-    name: L("تفسير القرآن", "Qur'ān Tafsīr", "Tafsīr du Coran"),
-    shortName: L("التفسير", "Tafsīr", "Tafsīr"),
+    name: L("التفسير", "Tafsīr", "Tafsīr"),
     hue: 280,
     description: L(
       "المصحف كاملاً بروايتي حفص وورش برسم مصحف المدينة النبوية، وتفسير كل آية بلمسة.",
@@ -79,7 +92,6 @@ export const categories: Category[] = [
       "Le muṣḥaf complet selon les riwāyat de Ḥafṣ et de Warsh, tel qu'écrit dans le muṣḥaf de Médine : touchez un verset pour son tafsīr.",
     ),
     items: mushafs.map((m) => ({ kind: "mushaf", id: m.id })),
-    hideItemsInSidebar: true,
   },
 ];
 
@@ -89,13 +101,28 @@ export function getCategory(id: string) {
   return categories.find((c) => c.id === id);
 }
 
-/** The category a science, adhkār collection, reciter or mushaf belongs to. */
+/** The category a science, adhkār collection, reciter, mushaf or sub-section belongs to. */
 export function categoryOf(kind: CategoryItem["kind"], id: string) {
   return categories.find((c) => c.items.some((i) => i.kind === kind && i.id === id));
 }
 
+/** The sections at the top of the sidebar, tab bar and home page (the others sit inside one). */
+export const topCategories = categories.filter((c) => !categoryOf("category", c.id));
+
+/** Whether a path is a section's own page or one of its pages, its sub-sections' included. */
+export function categoryContains(category: Category, pathname: string): boolean {
+  if (pathname === itemInfo({ kind: "category", id: category.id }).to) return true;
+  return category.items.some((i) =>
+    i.kind === "category" ? categoryContains(getCategory(i.id)!, pathname) : pathname.startsWith(itemInfo(i).to),
+  );
+}
+
 /** Name, link and colour of a category's page, whatever its kind. */
 export function itemInfo(item: CategoryItem): { name: Localized; to: string; hue: number } {
+  if (item.kind === "category") {
+    const c = getCategory(item.id)!;
+    return { name: c.name, to: href("/categories/:categoryId", { categoryId: c.id }), hue: c.hue };
+  }
   if (item.kind === "subject") {
     const s = getSubject(item.id)!;
     return { name: s.name, to: href("/subjects/:subjectId", { subjectId: s.id }), hue: s.hue };

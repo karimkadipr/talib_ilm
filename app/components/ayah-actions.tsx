@@ -329,21 +329,6 @@ export function AyahActions({
         )}
       </div>
 
-      {/* When the panel covers the ayah it explains (expanded, or a sheet over a low ayah), the ayah
-          stays in view above the tafsir. */}
-      {(expanded || (phone && anchor.bottom > window.innerHeight - peek)) && (
-        <p
-          lang="ar"
-          dir="rtl"
-          className={cn(
-            "font-uthmani tint-border mt-3 shrink-0 overflow-y-auto border-b pb-2 text-[1.35rem] leading-loose",
-            expanded ? "max-h-[22dvh]" : "max-h-[4.5em]",
-          )}
-        >
-          {ayah.words}
-        </p>
-      )}
-
       <div className="mt-3 flex items-center justify-between gap-3">
         <div role="tablist" aria-label={t("mushaf.tafsir")} className="flex gap-0.5 rounded-full border bg-background/40 p-0.5">
           {inApp.map((x) => (
@@ -385,6 +370,13 @@ export function AyahActions({
         dir="rtl"
         className="font-arabic relative mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain text-[1.05rem] leading-loose"
       >
+        {/* When the panel covers the ayah it explains (expanded, or a sheet over a low ayah), the whole
+            ayah heads its tafsir (in the same scroll, never a box scrolling on its own). */}
+        {(expanded || (phone && anchor.bottom > window.innerHeight - peek)) && (
+          <p className="font-uthmani tint-border mb-3 border-b pb-2 text-[1.35rem] leading-loose text-foreground">
+            {ayah.words}
+          </p>
+        )}
         {parts ? (
           parts.map((p) => (
             <div key={p.from} className="space-y-2">

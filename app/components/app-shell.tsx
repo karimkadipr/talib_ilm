@@ -9,7 +9,7 @@ import { MiniPlayer } from "~/components/mini-player";
 import { SettingsDialog } from "~/components/settings-dialog";
 import { Button } from "~/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "~/components/ui/dropdown-menu";
-import { categories, itemInfo } from "~/data/categories";
+import { categories, categoryContains, getCategory, itemInfo, topCategories } from "~/data/categories";
 import { useLocalize } from "~/lib/localize";
 import { useMiniPlayerVisible } from "~/lib/player";
 import { usePreferences } from "~/lib/preferences";
@@ -50,44 +50,33 @@ function Sidebar() {
           </div>
         )}
 
-        {categories.map((category) => (
+        {topCategories.map((category) => (
           <div key={category.id} className="space-y-1">
             <NavLink
               to={href("/categories/:categoryId", { categoryId: category.id })}
-              className={({ isActive }) =>
-                cn(
-                  navClass({
-                    // With its pages left out of the sidebar, the category itself marks where the reader is.
-                    isActive:
-                      isActive ||
-                      (!!category.hideItemsInSidebar &&
-                        category.items.some((i) => pathname.startsWith(itemInfo(i).to))),
-                  }),
-                  "font-medium text-sidebar-foreground",
-                )
-              }
+              className={({ isActive }) => cn(navClass({ isActive }), "font-medium text-sidebar-foreground")}
             >
               <CategoryIcon id={category.id} className="size-4" />
               <span className="truncate">{l(category.name)}</span>
             </NavLink>
-            {!category.hideItemsInSidebar && (
-              <div className="ms-5 space-y-0.5 border-s ps-2">
-                {category.items.map((item) => {
-                  const info = itemInfo(item);
-                  return (
-                    <NavLink
-                      key={item.id}
-                      to={info.to}
-                      className={navClass}
-                      style={{ "--hue": info.hue } as React.CSSProperties}
-                    >
-                      <span className="tint-solid size-2 shrink-0 rounded-full" />
-                      <span className="truncate">{l(info.name)}</span>
-                    </NavLink>
-                  );
-                })}
-              </div>
-            )}
+            <div className="ms-5 space-y-0.5 border-s ps-2">
+              {category.items.map((item) => {
+                const info = itemInfo(item);
+                // A sub-section's pages aren't listed, so it stays highlighted while one of them is open.
+                const sub = item.kind === "category" ? getCategory(item.id) : undefined;
+                return (
+                  <NavLink
+                    key={item.id}
+                    to={info.to}
+                    className={({ isActive }) => navClass({ isActive: isActive || (!!sub && categoryContains(sub, pathname)) })}
+                    style={{ "--hue": info.hue } as React.CSSProperties}
+                  >
+                    <span className="tint-solid size-2 shrink-0 rounded-full" />
+                    <span className="truncate">{l(info.name)}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
           </div>
         ))}
       </nav>
@@ -112,6 +101,7 @@ function StreakPill() {
 
 function MobileNav() {
   const { l, t } = useLocalize();
+  const { pathname } = useLocation();
   const p = useProgress();
   const { programme } = usePreferences();
   const item = ({ isActive }: { isActive: boolean }) =>
@@ -127,8 +117,13 @@ function MobileNav() {
 
   return (
     <nav className="flex border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
-      {categories.map((category) => (
-        <NavLink key={category.id} to={href("/categories/:categoryId", { categoryId: category.id })} className={item}>
+      {topCategories.map((category) => (
+        <NavLink
+          key={category.id}
+          to={href("/categories/:categoryId", { categoryId: category.id })}
+          // Lit on its pages too, e.g. the Qur'an tab on a reciter's page or a page of the muṣḥaf.
+          className={({ isActive }) => item({ isActive: isActive || categoryContains(category, pathname) })}
+        >
           <CategoryIcon id={category.id} className="size-5" />
           <span className="max-w-full truncate">{l(category.shortName ?? category.name)}</span>
         </NavLink>

@@ -1,8 +1,9 @@
 import { cn } from "cn";
-import { BookOpen, Search } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { useState } from "react";
 import { data, href, Link } from "react-router";
 import { BackLink } from "~/components/back-link";
+import { QuranSearchInput, QuranSearchResults } from "~/components/quran-search";
 import { categoryOf } from "~/data/categories";
 import { getMushafText } from "~/data/mushaf.server";
 import { getMushaf, mushafSource } from "~/data/mushafs";
@@ -72,23 +73,19 @@ export default function MushafPage({ loaderData }: Route.ComponentProps) {
           <h2 className="text-lg font-semibold">{t("quran.surahsTitle")}</h2>
           <span className="text-sm text-muted-foreground tabular-nums">{num(surahs.length)}</span>
         </div>
-        <label className="flex cursor-text items-center gap-2 rounded-xl border bg-card px-3 focus-within:ring-2 focus-within:ring-ring/50">
-          <Search className="size-4 shrink-0 text-muted-foreground" />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.currentTarget.value)}
-            placeholder={t("quran.search")}
-            aria-label={t("quran.search")}
-            className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        {/* Searches the whole Qur'an: an ayah (2:255), a page, or words; the surahs it matches stay in the list. */}
+        <QuranSearchInput mushaf={mushaf} value={query} onChange={setQuery} />
+        {query.trim() && (
+          <QuranSearchResults
+            mushaf={mushaf}
+            query={query}
+            withSurahs={false}
+            showNone={shown.length === 0}
+            className="overflow-hidden rounded-2xl border bg-card"
           />
-        </label>
+        )}
 
-        {shown.length === 0 ? (
-          <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-            {t("quran.noMatch", { q: query.trim() })}
-          </p>
-        ) : (
+        {shown.length === 0 ? null : (
           <ol className="divide-y overflow-hidden rounded-2xl border bg-card">
             {shown.map((s) => {
               const info = loaderData.surahs[s.n - 1];

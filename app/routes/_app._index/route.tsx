@@ -1,8 +1,8 @@
 import { ArrowRight, CalendarDays } from "lucide-react";
 import { href, Link } from "react-router";
 import { CategoryIcon } from "~/components/category-icon";
-import { type Category, categories } from "~/data/categories";
-import { countBooks, getSubject } from "~/data/curriculum";
+import { type Category, topCategories } from "~/data/categories";
+import { useCategoryStats } from "~/lib/category-stats";
 import { useLocalize } from "~/lib/localize";
 import { pageMeta } from "~/lib/meta";
 import { seo } from "~/lib/meta.server";
@@ -20,24 +20,9 @@ export function meta({ loaderData }: Route.MetaArgs) {
 const card =
   "group tint-border relative flex flex-col overflow-hidden rounded-3xl border bg-card p-6 transition-colors hover:bg-accent/40 sm:p-7 bg-[radial-gradient(120%_120%_at_0%_0%,oklch(0.3_0.06_var(--hue)/0.45),transparent_60%)] rtl:bg-[radial-gradient(120%_120%_at_100%_0%,oklch(0.3_0.06_var(--hue)/0.45),transparent_60%)]";
 
-/** What a category holds, e.g. "10 sciences · 154 books". */
-function useStats(category: Category) {
-  const { t } = useLocalize();
-  const kinds = new Set(category.items.map((i) => i.kind));
-  const n = category.items.length;
-  if (kinds.size !== 1) return [];
-  if (kinds.has("subject")) {
-    const books = category.items.reduce((sum, i) => sum + countBooks(getSubject(i.id)!), 0);
-    return [t("home.sciences", { count: n }), t("program.books", { count: books })];
-  }
-  if (kinds.has("reciter")) return [t("home.reciters", { count: n })];
-  if (kinds.has("mushaf")) return [t("home.riwayat", { count: n })];
-  return [t("home.collections", { count: n })];
-}
-
 function CategoryCard({ category }: { category: Category }) {
   const { l, isAr } = useLocalize();
-  const stats = useStats(category);
+  const stats = useCategoryStats(category);
   return (
     <Link
       to={href("/categories/:categoryId", { categoryId: category.id })}
@@ -72,7 +57,7 @@ export default function Home() {
       <h1 className="sr-only">{t("appName")}</h1>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {categories.map((category) => (
+        {topCategories.map((category) => (
           <CategoryCard key={category.id} category={category} />
         ))}
       </div>

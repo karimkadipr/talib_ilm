@@ -9,7 +9,10 @@ import { ScholarAvatar } from "~/components/scholar-avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { getAdhkarCollection } from "~/data/adhkar";
 import { getAdhkar } from "~/data/adhkar.server";
-import { getCategory, itemInfo } from "~/data/categories";
+import { BackLink } from "~/components/back-link";
+import { CategoryIcon } from "~/components/category-icon";
+import { categoryOf, getCategory, itemInfo } from "~/data/categories";
+import { useCategoryStats } from "~/lib/category-stats";
 import { countBooks, getSubject, type Subject } from "~/data/curriculum";
 import { seriesForBook } from "~/data/explanations";
 import { getMushaf } from "~/data/mushafs";
@@ -186,6 +189,33 @@ function MushafCard({ id }: { id: string }) {
   );
 }
 
+/** A sub-section of this section (e.g. the Qur'an's recitations or its tafsir). */
+function SectionCard({ id }: { id: string }) {
+  const section = getCategory(id)!;
+  const { l, isAr } = useLocalize();
+  const stats = useCategoryStats(section);
+  return (
+    <Link
+      to={itemInfo({ kind: "category", id }).to}
+      style={{ "--hue": section.hue } as React.CSSProperties}
+      className="group flex items-center gap-4 rounded-2xl border bg-card p-4 transition-colors hover:bg-accent/50"
+    >
+      <span className="tint-bg tint-fg flex size-14 shrink-0 items-center justify-center rounded-2xl">
+        <CategoryIcon id={id} className="size-6" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">{l(section.name)}</p>
+        {!isAr && (
+          <p lang="ar" className="font-arabic text-sm text-muted-foreground">
+            {section.name.ar}
+          </p>
+        )}
+        <p className="mt-1.5 text-xs text-muted-foreground">{stats.join(" · ")}</p>
+      </div>
+    </Link>
+  );
+}
+
 /** One reciter's favourite surahs, playable in place; "Play all" runs through them in order. */
 function FavoriteGroup({ reciter, list }: { reciter: Reciter; list: number[] }) {
   const s = usePlayer();
@@ -308,6 +338,7 @@ function QuranFavorites({ reciterIds }: { reciterIds: string[] }) {
 
 export default function CategoryPage({ loaderData }: Route.ComponentProps) {
   const category = getCategory(loaderData.categoryId)!;
+  const parent = categoryOf("category", category.id);
   const { programme } = usePreferences();
   const { l, t, num, isAr } = useLocalize();
   const recitersOnly = category.items.every((i) => i.kind === "reciter");
@@ -326,6 +357,8 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
           <ReciterCard key={item.id} id={item.id} />
         ) : item.kind === "mushaf" ? (
           <MushafCard key={item.id} id={item.id} />
+        ) : item.kind === "category" ? (
+          <SectionCard key={item.id} id={item.id} />
         ) : (
           <AdhkarCard key={item.id} id={item.id} counts={loaderData.adhkarCounts[item.id] ?? []} />
         ),
@@ -335,6 +368,11 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
 
   return (
     <div className="space-y-10">
+      {parent && (
+        <BackLink to={itemInfo({ kind: "category", id: parent.id }).to} className="-mb-6">
+          {l(parent.name)}
+        </BackLink>
+      )}
       <header className="relative overflow-hidden rounded-3xl border bg-card p-6 sm:p-10">
         <div className="bg-khatam pointer-events-none absolute inset-0 mask-[radial-gradient(70%_100%_at_100%_0%,black,transparent)]" />
         <div className="relative max-w-2xl">
@@ -379,7 +417,9 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
               ? t("category.sciences")
               : category.items.every((i) => i.kind === "mushaf")
                 ? t("category.riwayat")
-                : t("category.pages")}
+                : category.items.every((i) => i.kind === "category")
+                  ? t("category.sections")
+                  : t("category.pages")}
           </h2>
           {grid}
         </section>

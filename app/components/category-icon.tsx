@@ -1,8 +1,15 @@
-import { AudioLines, BookOpen, BookOpenText } from "lucide-react";
+import { AudioLines, BookOpen, BookOpenText, ScrollText } from "lucide-react";
 import { DuaHandsIcon } from "~/components/dua-hands-icon";
 
-/** The icon of a top-level category (sidebar, tab bar, home page). */
+const icons: Record<string, typeof BookOpen> = {
+  adhkar: DuaHandsIcon as typeof BookOpen,
+  quran: BookOpenText,
+  recitation: AudioLines,
+  tafsir: ScrollText,
+};
+
+/** The icon of a category (sidebar, tab bar, home page, a section's sub-section cards). */
 export function CategoryIcon({ id, className }: { id: string; className?: string }) {
-  const Icon = id === "adhkar" ? DuaHandsIcon : id === "quran" ? AudioLines : id === "tafsir" ? BookOpenText : BookOpen;
+  const Icon = icons[id] ?? BookOpen;
   return <Icon className={className} />;
 }

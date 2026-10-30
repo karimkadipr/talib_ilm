@@ -63,6 +63,12 @@
     0%, 20% { background-color: oklch(0.78 0.12 var(--hue, 163) / 0.28); }
     100% { background-color: transparent; }
   }
+  /* The ayah a Qur'an search opened the page at: lit up, then fading back into the page. */
+  --animate-ayah-flash: ayah-flash 3s ease-out;
+  @keyframes ayah-flash {
+    0%, 40% { background-color: oklch(0.78 0.12 var(--hue, 163) / 0.32); }
+    100% { background-color: transparent; }
+  }
 }
 
 /* Held back (block) rather than swapped: in any other font the mushaf text draws its marks wrongly. */

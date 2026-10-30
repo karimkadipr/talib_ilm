@@ -1,9 +1,10 @@
 import { cn } from "cn";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { data, href, Link, useLocation, useNavigate, useNavigation } from "react-router";
 import { AyahActions, type SelectedAyah } from "~/components/ayah-actions";
 import { BackLink } from "~/components/back-link";
+import { QuranSearchDialog } from "~/components/quran-search";
 import { getPage, pageCount } from "~/data/mushaf.server";
 import { getTafsir } from "~/data/tafsir.server";
 import { getMushaf, mushafSource, type TafsirPart, tafsirs } from "~/data/mushafs";
@@ -49,21 +50,20 @@ const mushafNumber = (n: number, isAr: boolean) => (isAr ? n.toLocaleString("ar-
 
 /**
  * An ayah mark around a number in Western digits. The font only draws its mark around Arabic digits,
- * so this is its empty mark (U+06DD) with the number set over it.
+ * so this is its empty mark (U+06DD) with the number centred over the drawn mark: at line-height 1 the
+ * mark's box runs from 0.793em above the baseline to 0.207em below, and the glyph's bounds within it
+ * (from the font file) are 0.02–0.738em across and 0.107–0.998em down.
  */
 function AyahMark({ n }: { n: number }) {
   return (
     <>
       &nbsp;
-      <span className="relative inline-block">
+      <span className="relative inline-block leading-none">
         ۝
-        <span
-          className={cn(
-            "absolute inset-0 grid place-items-center pt-[0.05em] font-sans leading-none font-semibold tracking-tight",
-            n > 99 ? "text-[0.3em]" : "text-[0.36em]",
-          )}
-        >
-          {n}
+        <span className="absolute top-[0.107em] left-[0.02em] grid h-[0.891em] w-[0.718em] place-items-center">
+          <span className={cn("font-sans leading-none font-semibold tracking-tight", n > 99 ? "text-[0.3em]" : "text-[0.36em]")}>
+            {n}
+          </span>
         </span>
       </span>
     </>
@@ -78,7 +78,9 @@ const PHONE = "(max-width: 1023.98px)";
 
 /**
  * Sizes the page's text (in px, everything inside scales with it in em) to the largest that still
- * fits its frame, between 12 and 30. Above lg it clears the size and the page keeps its CSS one.
+ * fits its frame, between 10 and 30, so the page never scrolls; only a screen too short for it even
+ * at 10px (a phone on its side) lets it scroll rather than cut the text. Above lg it clears the size
+ * and the page keeps its CSS one.
  */
 function useFitToFrame(frame: React.RefObject<HTMLElement | null>, text: React.RefObject<HTMLElement | null>, key: unknown) {
   useLayoutEffect(() => {
@@ -89,19 +91,23 @@ function useFitToFrame(frame: React.RefObject<HTMLElement | null>, text: React.R
     const fit = () => {
       if (!phone.matches) {
         el.style.fontSize = "";
+        box.style.overflowY = "";
         return;
       }
       const s = getComputedStyle(box);
       const room = box.clientHeight - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom);
-      let lo = 12;
+      // Exact heights with a pixel to spare: a rounded one can leave a fraction over, enough to scroll.
+      const fits = () => el.getBoundingClientRect().height <= room - 1;
+      let lo = 10;
       let hi = 30;
-      for (let i = 0; i < 9; i++) {
+      for (let i = 0; i < 10; i++) {
         const mid = (lo + hi) / 2;
         el.style.fontSize = `${mid}px`;
-        if (el.offsetHeight <= room) lo = mid;
+        if (fits()) lo = mid;
         else hi = mid;
       }
       el.style.fontSize = `${lo}px`;
+      box.style.overflowY = fits() ? "hidden" : "auto";
     };
     fit();
     // Again once the mushaf font has loaded (its metrics differ from the fallback's), and on resize/rotation.
@@ -124,8 +130,19 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
   const { l, t, num, isAr } = useLocalize();
   const uiDir = isAr ? "rtl" : "ltr";
   const navigate = useNavigate();
+  const location = useLocation();
   // Which way the last turn went, so the new page slides in from the side it was turned from.
-  const turn = (useLocation().state as { turn?: Turn } | null)?.turn;
+  const turn = (location.state as { turn?: Turn } | null)?.turn;
+  // The ayah a search (or a link) opened the page at, lit up for a moment: #ayah-<surah>-<n>.
+  const target = location.hash.match(/^#ayah-(\d+)-(\d+)$/);
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    if (!target) return;
+    // On wide screens the page scrolls: bring the ayah to the middle (a phone's page always fits).
+    if (!window.matchMedia(PHONE).matches)
+      document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: "center", behavior: "smooth" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
   const touch = useRef<{ x: number; y: number } | null>(null);
   const frame = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLDivElement>(null);
@@ -176,9 +193,13 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-      if ((e.target as HTMLElement).closest("input, textarea, select, [contenteditable]")) return;
+      if ((e.target as HTMLElement).closest("input, textarea, select, [contenteditable], [role=dialog]")) return;
       if (e.key === "ArrowLeft") turnTo.current?.("next");
       else if (e.key === "ArrowRight") turnTo.current?.("prev");
+      else if (e.key === "/") {
+        e.preventDefault();
+        setSearching(true);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -219,12 +240,21 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
         "max-lg:fixed max-lg:inset-0 max-lg:z-40 max-lg:flex max-lg:max-w-none max-lg:flex-col max-lg:gap-2 max-lg:space-y-0 max-lg:bg-background max-lg:px-3 max-lg:pt-[max(env(safe-area-inset-top),0.5rem)] max-lg:pb-[max(env(safe-area-inset-bottom),0.5rem)]",
       )}
     >
-      <BackLink to={back} className="max-lg:hidden">
-        {l(mushaf.name)}
-      </BackLink>
+      <div className="flex items-center justify-between gap-3 max-lg:hidden">
+        <BackLink to={back}>{l(mushaf.name)}</BackLink>
+        <button
+          type="button"
+          onClick={() => setSearching(true)}
+          className="inline-flex items-center gap-2 rounded-full border bg-card/60 py-1.5 ps-3 pe-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <Search className="size-4" />
+          {t("search.button")}
+          <kbd className="rounded border px-1.5 font-sans text-[0.7rem] leading-5">/</kbd>
+        </button>
+      </div>
 
-      {/* Phone top bar: back, then the running head on one line. */}
-      <div className="flex h-10 shrink-0 items-center gap-2 lg:hidden">
+      {/* Phone top bar: back, the running head on one line, then search. */}
+      <div className="flex h-10 shrink-0 items-center gap-1 lg:hidden">
         <Link
           to={back}
           aria-label={`${t("nav.back")}: ${l(mushaf.name)}`}
@@ -232,11 +262,20 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
         >
           <ChevronLeft className="size-5 rtl:rotate-180" />
         </Link>
-        <p lang="ar" dir="rtl" className="font-arabic flex min-w-0 flex-1 justify-between gap-3 pe-2 text-sm text-muted-foreground">
+        <p lang="ar" dir="rtl" className="font-arabic flex min-w-0 flex-1 justify-between gap-3 px-1 text-sm text-muted-foreground">
           <span className="truncate">{surahName}</span>
           <span className="shrink-0">{juz}</span>
         </p>
+        <button
+          type="button"
+          onClick={() => setSearching(true)}
+          aria-label={t("search.button")}
+          className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <Search className="size-5" />
+        </button>
       </div>
+      <QuranSearchDialog mushaf={mushaf} open={searching} onOpenChange={setSearching} />
 
       <article
         key={page}
@@ -272,7 +311,7 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
             ref={frame}
             // Tapping the page anywhere but an ayah puts the selection away.
             onClick={(e) => !(e.target as Element).closest("[data-ayah]") && setSelection(null)}
-            className="tint-border flex min-h-[70dvh] flex-col rounded-[1.4rem] border px-4 py-6 sm:px-10 sm:py-9 max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:rounded-[1.25rem] max-lg:px-3 max-lg:py-3 sm:max-lg:px-8"
+            className="tint-border flex min-h-[70dvh] flex-col rounded-[1.4rem] border px-4 py-6 sm:px-10 sm:py-9 max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-hidden max-lg:rounded-[1.25rem] max-lg:px-3 max-lg:py-3 sm:max-lg:px-8"
           >
             {/* Everything below is sized in em from here, so fitting the page scales it all together. */}
             {/* Centred on a short page (auto margins, unlike justify-center, never clip one that overflows). */}
@@ -305,8 +344,10 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
                         tafsir: tafsir[`${s.surah}:${a.n}`] ?? {},
                       };
                       const isSelected = selected?.surah === s.surah && selected.n === a.n;
+                      const isTarget = !!target && Number(target[1]) === s.surah && Number(target[2]) === a.n;
                       return (
-                        <span key={a.n}>
+                        // Keyed by the visit too, so searching for the same ayah again lights it up again.
+                        <span key={isTarget ? `${a.n}:${location.key}` : a.n}>
                           {/* Tapping an ayah selects it and opens its actions (tafsir, copy). */}
                           <span
                             id={`ayah-${s.surah}-${a.n}`}
@@ -323,6 +364,7 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
                             className={cn(
                               "cursor-pointer rounded-lg box-decoration-clone transition-colors outline-none hover:bg-white/4 focus-visible:bg-accent/60",
                               isSelected && "tint-bg hover:tint-bg",
+                              isTarget && !isSelected && "animate-ayah-flash motion-reduce:tint-bg motion-reduce:animate-none",
                             )}
                           >
                             {words}
