@@ -159,10 +159,10 @@ function MushafCard({ id }: { id: string }) {
       style={{ "--hue": mushaf.hue } as React.CSSProperties}
       className="group flex items-center gap-4 rounded-2xl border bg-card p-4 transition-colors hover:bg-accent/50"
     >
-      {/* The riwayah's initial, in its own mushaf font. */}
+      {/* The riwayah's initial, in the mushaf's font. */}
       <span
         lang="ar"
-        className={cn("tint-bg tint-fg flex size-14 shrink-0 items-center justify-center rounded-2xl text-3xl", mushaf.font)}
+        className="tint-bg tint-fg font-uthmani flex size-14 shrink-0 items-center justify-center rounded-2xl text-3xl"
       >
         {mushaf.name.ar.split(" ")[1][0]}
       </span>

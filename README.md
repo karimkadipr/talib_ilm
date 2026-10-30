@@ -33,7 +33,12 @@ Data:
   are listed (MP3s hosted on archive.org, see `archiveSeries`); books without one show no explanations.
 - `app/data/mushaf/{hafs,warsh}.md` — the Qur'an's full text in each riwayah (King Fahd Complex
   Uthmanic data, verbatim; format in each file's header), read by `mushaf.server.ts` for the
-  Qur'ān Tafsīr section (`/categories/tafsir`), shown a Madinah-mushaf page at a time (`/mushaf/:mushafId/page/:page`). It needs the KFGQPC fonts in `public/fonts/kfgqpc/`.
+  Qur'ān Tafsīr section (`/categories/tafsir`), shown a Madinah-mushaf page at a time (`/mushaf/:mushafId/page/:page`). Both riwayat are drawn in the KFGQPC Uthmanic font in `public/fonts/kfgqpc/`.
+- `app/data/tafsir/{muyassar,saadi}.md` — tafsirs read in the app when an ayah is tapped, by ayah
+  (or group of ayat explained together) in Ḥafṣ's count, read by `tafsir.server.ts`: al-Tafsīr
+  al-Muyassar (King Fahd Complex) from Tanzil.net (terms: non-commercial use, source credited and
+  linked), sent with each mushaf page; as-Saʿdī from the Quranic Universal Library, fetched from
+  `/api/loaders/tafsir/:tafsirId/:surah?ayahs=…` when its tab is opened.
 - `app/lib/progress.ts` — progress, streak and notes in `localStorage` — there is no login by design.
 - `app/lib/schedule.ts` — weekday → science (week starts Saturday), current book, progress maths.
 

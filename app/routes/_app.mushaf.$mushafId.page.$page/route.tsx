@@ -5,7 +5,8 @@ import { data, href, Link, useLocation, useNavigate, useNavigation } from "react
 import { AyahActions, type SelectedAyah } from "~/components/ayah-actions";
 import { BackLink } from "~/components/back-link";
 import { getPage, pageCount } from "~/data/mushaf.server";
-import { getMushaf, mushafSource } from "~/data/mushafs";
+import { getTafsir } from "~/data/tafsir.server";
+import { getMushaf, mushafSource, type TafsirPart, tafsirs } from "~/data/mushafs";
 import { surahs } from "~/data/surahs";
 import { useLocalize } from "~/lib/localize";
 import { mushafPosition } from "~/lib/mushaf-position";
@@ -19,11 +20,19 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   const sections = mushaf && Number.isInteger(page) && page >= 1 ? getPage(mushaf.id, page) : undefined;
   if (!mushaf || !sections) throw data(null, { status: 404 });
   const { l, num, t } = localizer(context);
+  // The short in-app tafsirs of each ayah on the page (by "surah:ayah", then tafsir), ready for a tap.
+  const tafsir: Record<string, Record<string, TafsirPart[]>> = {};
+  for (const s of sections)
+    for (const a of s.ayahs)
+      tafsir[`${s.surah}:${a.n}`] = Object.fromEntries(
+        tafsirs.filter((x) => x.preload).map((x) => [x.id, getTafsir(x.id, s.surah, a.hafsAyahs)]),
+      );
   return {
     mushafId: mushaf.id,
     page,
     pages: pageCount(mushaf.id),
     sections,
+    tafsir,
     meta: seo(context, [`${surahs[sections[0].surah - 1].name} · ${t("mushaf.page", { n: num(page) })}`, l(mushaf.name)]),
   };
 }
@@ -32,8 +41,34 @@ export function meta({ loaderData }: Route.MetaArgs) {
   return pageMeta(loaderData?.meta);
 }
 
-/** The mushaf's own furniture (header, page number) is Arabic whatever the UI language. */
-const arabicNumber = (n: number) => n.toLocaleString("ar-EG");
+/**
+ * The mushaf's own furniture (header, page and ayah numbers) is Arabic whatever the UI language, but
+ * its numbers follow it: Arabic digits in the Arabic UI, Western ones (as in Algerian mushafs) otherwise.
+ */
+const mushafNumber = (n: number, isAr: boolean) => (isAr ? n.toLocaleString("ar-EG") : String(n));
+
+/**
+ * An ayah mark around a number in Western digits. The font only draws its mark around Arabic digits,
+ * so this is its empty mark (U+06DD) with the number set over it.
+ */
+function AyahMark({ n }: { n: number }) {
+  return (
+    <>
+      &nbsp;
+      <span className="relative inline-block">
+        ۝
+        <span
+          className={cn(
+            "absolute inset-0 grid place-items-center pt-[0.05em] font-sans leading-none font-semibold tracking-tight",
+            n > 99 ? "text-[0.3em]" : "text-[0.36em]",
+          )}
+        >
+          {n}
+        </span>
+      </span>
+    </>
+  );
+}
 
 /** An ayah's text and its closing number (the non-breaking space and digits its font draws as the ayah mark). */
 const AYAH_NUMBER = /^([\s\S]*?)( ?[٠-٩]+)$/;
@@ -85,7 +120,7 @@ type Turn = "next" | "prev";
 
 export default function MushafPageView({ loaderData }: Route.ComponentProps) {
   const mushaf = getMushaf(loaderData.mushafId)!;
-  const { page, pages, sections } = loaderData;
+  const { page, pages, sections, tafsir } = loaderData;
   const { l, t, num, isAr } = useLocalize();
   const uiDir = isAr ? "rtl" : "ltr";
   const navigate = useNavigate();
@@ -102,13 +137,18 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
   const next = page < pages ? page + 1 : null;
   const first = sections[0];
   const surahName = `سورة ${surahs[first.surah - 1].name}`;
-  const juz = `الجزء ${arabicNumber(first.ayahs[0].juz)}`;
+  const juz = `الجزء ${mushafNumber(first.ayahs[0].juz, isAr)}`;
 
   useEffect(() => mushafPosition.set(mushaf.id, page), [mushaf.id, page]);
 
   // The tapped ayah, kept with its page so turning the page drops it; and which edge its panel docks
   // to on a phone (away from the ayah, so the panel never covers it).
-  const [selection, setSelection] = useState<{ page: number; ayah: SelectedAyah; side: "top" | "bottom" } | null>(null);
+  const [selection, setSelection] = useState<{
+    page: number;
+    ayah: SelectedAyah;
+    side: "top" | "bottom";
+    anchor: { top: number; bottom: number };
+  } | null>(null);
   const selected = selection?.page === page ? selection.ayah : null;
   const closeAyah = useCallback(() => setSelection(null), []);
   function pick(ayah: SelectedAyah, el: HTMLElement) {
@@ -116,7 +156,12 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
     if (window.getSelection()?.toString()) return;
     if (selected?.surah === ayah.surah && selected.n === ayah.n) return setSelection(null);
     const r = el.getBoundingClientRect();
-    setSelection({ page, ayah, side: r.top + r.height / 2 > window.innerHeight * 0.55 ? "top" : "bottom" });
+    setSelection({
+      page,
+      ayah,
+      side: r.top + r.height / 2 > window.innerHeight * 0.55 ? "top" : "bottom",
+      anchor: { top: r.top, bottom: r.bottom },
+    });
   }
 
   // Like a printed mushaf, which opens right to left: the next page lies to the left.
@@ -240,19 +285,25 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
                     </h2>
                   )}
                   {s.basmala && (
-                    <p className={cn("my-[0.3em] text-center text-[1.08em] leading-loose", mushaf.font)}>{s.basmala}</p>
+                    <p className="font-uthmani my-[0.3em] text-center text-[1.08em] leading-loose">{s.basmala}</p>
                   )}
                   <p
                     className={cn(
-                      "text-justify leading-[2.2] text-foreground",
+                      "font-uthmani text-justify leading-[2.2] text-foreground",
                       // A surah's last lines sit centred, as in print; text running on to the next page stays flush.
                       s.closes ? "[text-align-last:center]" : "[text-align-last:right]",
-                      mushaf.font,
                     )}
                   >
                     {s.ayahs.map((a) => {
                       const [, words, number] = a.text.match(AYAH_NUMBER) ?? [a.text, a.text, ""];
-                      const ayah = { surah: s.surah, n: a.n, hafs: a.hafs, words };
+                      const ayah = {
+                        surah: s.surah,
+                        n: a.n,
+                        hafs: a.hafs,
+                        hafsAyahs: a.hafsAyahs,
+                        words,
+                        tafsir: tafsir[`${s.surah}:${a.n}`] ?? {},
+                      };
                       const isSelected = selected?.surah === s.surah && selected.n === a.n;
                       return (
                         <span key={a.n}>
@@ -276,7 +327,7 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
                           >
                             {words}
                             {/* The ayah mark in the riwayah's colour, so where each ayah ends stands out. */}
-                            <span className="tint-fg">{number}</span>
+                            <span className="tint-fg">{isAr ? number : <AyahMark n={a.n} />}</span>
                           </span>{" "}
                         </span>
                       );
@@ -288,7 +339,7 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
           </div>
         </div>
 
-        <footer className="font-arabic pt-2 text-center text-sm text-muted-foreground max-lg:hidden">{arabicNumber(page)}</footer>
+        <footer className="font-arabic pt-2 text-center text-sm text-muted-foreground max-lg:hidden">{mushafNumber(page, isAr)}</footer>
       </article>
 
       {/* Laid out like the mushaf: previous page on the right, next on the left. */}
@@ -303,12 +354,12 @@ export default function MushafPageView({ loaderData }: Route.ComponentProps) {
       <nav dir="rtl" className="flex shrink-0 items-center justify-between lg:hidden">
         {pageLink(prev, "prev", true)}
         <span className="font-arabic text-sm text-muted-foreground" title={t("mushaf.pageOf", { n: num(page), total: num(pages) })}>
-          {arabicNumber(page)}
+          {mushafNumber(page, isAr)}
         </span>
         {pageLink(next, "next", true)}
       </nav>
 
-      {selection && selected && <AyahActions mushaf={mushaf} ayah={selected} side={selection.side} onClose={closeAyah} />}
+      {selection && selected && <AyahActions mushaf={mushaf} ayah={selected} side={selection.side} anchor={selection.anchor} onClose={closeAyah} />}
 
       <p className="pb-4 text-center text-xs text-muted-foreground max-lg:hidden">
         {t("watch.source")}{" "}

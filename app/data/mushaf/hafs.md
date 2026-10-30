@@ -2,7 +2,7 @@
 القرآن الكريم، رواية حفص عن عاصم، برسم مصحف المدينة النبوية.
 Source: King Fahd Glorious Qur'an Printing Complex (qurancomplex.gov.sa), Uthmanic Hafs v18 data, via
 github.com/thetruetruth/quran-data-kfgqpc. Each ayah is the published text verbatim, ending in its number;
-it is drawn correctly only with the matching KFGQPC font (public/fonts/kfgqpc/).
+it is drawn with the matching KFGQPC Uthmanic font (public/fonts/kfgqpc/).
 
   ## 2 البَقَرَة     a surah: its number and name
   > …               the basmala heading the surah (unnumbered)
