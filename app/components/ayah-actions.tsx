@@ -1,6 +1,6 @@
 import { cn } from "cn";
-import { ArrowUpRight, Check, Copy, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ArrowUpRight, Check, Copy, Maximize2, Minimize2, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { href } from "react-router";
 import { englishTafsirUrl, type Mushaf, type Tafsir, type TafsirPart, tafsirs, tafsirUrl } from "~/data/mushafs";
 import { surahs } from "~/data/surahs";
@@ -22,6 +22,21 @@ export type SelectedAyah = {
 /** Tafsirs read in the app, offered as tabs; the others are links. */
 const inApp = tafsirs.filter((t) => t.source);
 
+const PHONE = "(max-width: 1023.98px)";
+
+/** Below lg (the panel only renders in the browser, so the server snapshot never shows). */
+function usePhone() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia(PHONE);
+      query.addEventListener("change", onChange);
+      return () => query.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(PHONE).matches,
+    () => false,
+  );
+}
+
 /** The tafsir tab last read, so a reader of as-Saʿdī gets as-Saʿdī on the next ayah too. */
 const TAB_KEY = "islamic-studies:tafsir-tab:v1";
 
@@ -42,7 +57,8 @@ function fetchTafsir(url: string) {
 
 /**
  * A tafsir's paragraphs, with the Qur'an words it quotes set off in the riwayah's colour (in ﴿ ﴾ for a
- * tafsir that marks them with braces) and its ayah markers ({12}) as numbered badges.
+ * tafsir that marks them with braces) and its ayah markers ({12}, or {3 ـ 4} for two explained
+ * together) as numbered badges.
  */
 function TafsirText({ text, quotes }: { text: string; quotes: Tafsir["quotes"] }) {
   const { num } = useLocalize();
@@ -52,14 +68,13 @@ function TafsirText({ text, quotes }: { text: string; quotes: Tafsir["quotes"] }
       {paragraph.split(pattern).map((part, j) => {
         if (j % 2 === 0) return part;
         if (quotes !== "{}") return <span key={j} className="tint-fg">{part}</span>;
-        const mark = part.match(/^\{(\d+)\}$/);
+        const mark = part.match(/^\{(\d+)(?:\s*[ـ–-]\s*(\d+))?\}$/);
         return mark ? (
           <span
             key={j}
-            data-mark={mark[1]}
-            className="tint-bg tint-fg mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 align-middle font-sans text-[0.7rem] leading-none"
+            className="tint-bg tint-fg mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 align-middle font-sans text-[0.7rem] leading-none"
           >
-            {num(Number(mark[1]))}
+            {mark[2] ? `${num(Number(mark[1]))}–${num(Number(mark[2]))}` : num(Number(mark[1]))}
           </span>
         ) : (
           <span key={j} className="tint-fg">
@@ -136,26 +151,73 @@ export function AyahActions({
   const current = loaded?.url === url ? loaded : null;
   const parts = preloaded ?? current?.parts;
 
-  // As tall as the room between its docked edge and the ayah (the tafsir scrolls inside), but never
-  // so short it's unusable when the ayah fills most of the screen.
+  // Expanded, it fills the screen top to bottom for a long tafsir (the ayah shown inside instead).
+  const [expanded, setExpanded] = useState(false);
+
+  // On phones it's a bottom sheet, as in mobile apps: it opens most of the way up (just below the ayah,
+  // between 65% and 80% of the screen; the ayah is shown in it when covered), its handle drags it up to
+  // full height or down to shrink or close it.
+  const phone = usePhone();
+  const peek = Math.round(Math.min(Math.max(window.innerHeight - anchor.bottom - 8, window.innerHeight * 0.65), window.innerHeight * 0.8));
+  const [dragHeight, setDragHeight] = useState<number | null>(null);
+  const dragged = useRef(false);
+  function startDrag(e: React.PointerEvent) {
+    if (!phone || e.button !== 0 || (e.target as Element).closest("button:not([data-grabber]), a")) return;
+    const el = panel.current!;
+    const start = { y: e.clientY, height: el.getBoundingClientRect().height };
+    const full = window.innerHeight - 12;
+    let last = { y: e.clientY, t: e.timeStamp };
+    let velocity = 0; // px/ms, positive downwards
+    let height = start.height;
+    dragged.current = false;
+    const move = (ev: PointerEvent) => {
+      if (Math.abs(ev.clientY - start.y) > 6) dragged.current = true;
+      if (!dragged.current) return;
+      if (ev.timeStamp > last.t) velocity = (ev.clientY - last.y) / (ev.timeStamp - last.t);
+      last = { y: ev.clientY, t: ev.timeStamp };
+      height = Math.min(Math.max(start.height - (ev.clientY - start.y), 0), full);
+      setDragHeight(height);
+    };
+    const end = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      setDragHeight(null);
+      if (!dragged.current) return;
+      // A flick goes one step its way; a slow drag settles on the nearest height, or closes when let go
+      // well below the peek.
+      if (Math.abs(velocity) > 0.5) {
+        if (velocity < 0) setExpanded(true);
+        else if (expanded && height > peek * 0.6) setExpanded(false);
+        else onClose();
+      } else if (height < peek * 0.6) onClose();
+      else setExpanded(height > (peek + full) / 2);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  }
+
+  // On wider screens, as tall as the room between its docked edge and the ayah (the tafsir scrolls
+  // inside), but never shorter than 40% of the screen, even if it then covers part of a long ayah.
   useLayoutEffect(() => {
     const el = panel.current;
     if (!el) return;
+    if (expanded || phone) {
+      el.style.maxHeight = "";
+      return;
+    }
     // From its CSS offset, not its box, which is still mid slide-in.
     const s = getComputedStyle(el);
     const room =
       side === "bottom" ? window.innerHeight - parseFloat(s.bottom) - anchor.bottom : anchor.top - parseFloat(s.top);
-    el.style.maxHeight = `${Math.max(room - 8, 240)}px`;
-  }, [side, anchor]);
+    el.style.maxHeight = `${Math.max(room - 8, window.innerHeight * 0.4)}px`;
+  }, [side, anchor, expanded, phone]);
 
-  // A tafsir explaining several ayat together opens where this one's explanation starts.
+  // Each tafsir opens at its start, even one explaining several ayat together.
   useLayoutEffect(() => {
-    const el = body.current;
-    if (!el) return;
-    const mark = el.querySelector<HTMLElement>(`[data-mark="${ayah.hafsAyahs[0]}"]`);
-    // (The body is the marks' offset parent.)
-    el.scrollTop = mark ? mark.offsetTop - 4 : 0;
-  }, [parts, ayah.hafsAyahs]);
+    if (body.current) body.current.scrollTop = 0;
+  }, [parts]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -185,7 +247,7 @@ export function AyahActions({
   }
 
   const chip =
-    "inline-flex items-center gap-1 rounded-full border bg-background/40 px-3 py-1.5 text-sm transition-colors hover:bg-accent";
+    "inline-flex shrink-0 items-center gap-1 rounded-full border bg-background/40 px-2.5 py-1 text-xs transition-colors hover:bg-accent";
   const iconButton =
     "rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 
@@ -195,37 +257,90 @@ export function AyahActions({
       role="dialog"
       aria-label={`${isAr ? surah.name : surah.translit} · ${t("mushaf.ayah", { n: num(ayah.n) })}`}
       dir={isAr ? "rtl" : "ltr"}
+      style={phone && (dragHeight !== null || !expanded) ? { height: dragHeight ?? peek } : undefined}
       className={cn(
-        "tint-border fixed inset-x-3 z-50 flex flex-col rounded-2xl border bg-popover p-4 shadow-2xl duration-200 animate-in fade-in",
-        side === "bottom"
-          ? "bottom-[max(env(safe-area-inset-bottom),0.75rem)] slide-in-from-bottom-4 lg:bottom-6"
-          : "top-[max(env(safe-area-inset-top),0.75rem)] slide-in-from-top-4 lg:top-20",
-        // Wide screens: as wide as the page and centred over it (beside the sidebar), below the header.
-        "lg:inset-s-80 lg:inset-e-0 lg:mx-auto lg:max-w-2xl",
+        "tint-border fixed z-50 flex flex-col border bg-popover shadow-2xl animate-in fade-in",
+        phone
+          ? cn(
+              "inset-x-0 bottom-0 rounded-t-3xl border-x-0 border-b-0 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] duration-300 slide-in-from-bottom-8",
+              // Follows the finger while dragged, and glides to where it settles.
+              dragHeight === null && "transition-[height] ease-out",
+              expanded && "h-[calc(100dvh-max(env(safe-area-inset-top),0.75rem))]",
+            )
+          : cn(
+              "inset-x-3 rounded-2xl p-4 duration-200",
+              (expanded || side === "bottom") && "bottom-6",
+              (expanded || side === "top") && "top-20",
+              side === "bottom" ? "slide-in-from-bottom-4" : "slide-in-from-top-4",
+              // As wide as the page and centred over it (beside the sidebar), below the header.
+              "lg:inset-s-80 lg:inset-e-0 lg:mx-auto lg:max-w-2xl",
+            ),
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-medium">
-            {isAr ? `سورة ${surah.name}` : surah.translit} · {t("mushaf.ayah", { n: num(ayah.n) })}
+      {/* The sheet's handle and header drag it (touch-none: the drag, not the browser, gets the swipe). */}
+      <div onPointerDown={startDrag} className={cn("shrink-0", phone && "touch-none select-none")}>
+        {phone && (
+          <button
+            type="button"
+            data-grabber
+            onClick={() => !dragged.current && setExpanded((e) => !e)}
+            aria-expanded={expanded}
+            aria-label={t(expanded ? "mushaf.shrink" : "mushaf.expand")}
+            className="flex w-full justify-center pt-2.5 pb-2"
+          >
+            <span className="h-1.5 w-10 rounded-full bg-muted-foreground/40" />
+          </button>
+        )}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-medium">
+              {isAr ? `سورة ${surah.name}` : surah.translit} · {t("mushaf.ayah", { n: num(ayah.n) })}
+            </p>
+            {/* With several Ḥafṣ ayat, each part of the tafsir is labelled instead. */}
+            {ayah.hafs !== ayah.n && ayah.hafsAyahs.length < 2 && (
+              <p className="mt-0.5 text-xs text-muted-foreground">{t("mushaf.hafsCount", { n: num(ayah.hafs) })}</p>
+            )}
+          </div>
+          <div className="-me-1.5 -mt-1 flex shrink-0 items-center">
+            {!phone && (
+              <button
+                type="button"
+                onClick={() => setExpanded((e) => !e)}
+                aria-pressed={expanded}
+                aria-label={t(expanded ? "mushaf.shrink" : "mushaf.expand")}
+                title={t(expanded ? "mushaf.shrink" : "mushaf.expand")}
+                className={iconButton}
+              >
+                {expanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+              </button>
+            )}
+            <button type="button" onClick={copy} aria-label={t("mushaf.copy")} title={t("mushaf.copy")} className={iconButton}>
+              {copied ? <Check className="tint-fg size-4" /> : <Copy className="size-4" />}
+            </button>
+            <button type="button" onClick={onClose} aria-label={t("settings.close")} className={iconButton}>
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+        {copied && (
+          <p role="status" className="tint-fg -mt-1 text-xs">
+            {t("mushaf.copied")}
           </p>
-          {/* With several Ḥafṣ ayat, each part of the tafsir is labelled instead. */}
-          {ayah.hafs !== ayah.n && ayah.hafsAyahs.length < 2 && (
-            <p className="mt-0.5 text-xs text-muted-foreground">{t("mushaf.hafsCount", { n: num(ayah.hafs) })}</p>
-          )}
-        </div>
-        <div className="-me-1.5 -mt-1 flex shrink-0 items-center">
-          <button type="button" onClick={copy} aria-label={t("mushaf.copy")} title={t("mushaf.copy")} className={iconButton}>
-            {copied ? <Check className="tint-fg size-4" /> : <Copy className="size-4" />}
-          </button>
-          <button type="button" onClick={onClose} aria-label={t("settings.close")} className={iconButton}>
-            <X className="size-4" />
-          </button>
-        </div>
+        )}
       </div>
-      {copied && (
-        <p role="status" className="tint-fg -mt-1 text-xs">
-          {t("mushaf.copied")}
+
+      {/* When the panel covers the ayah it explains (expanded, or a sheet over a low ayah), the ayah
+          stays in view above the tafsir. */}
+      {(expanded || (phone && anchor.bottom > window.innerHeight - peek)) && (
+        <p
+          lang="ar"
+          dir="rtl"
+          className={cn(
+            "font-uthmani tint-border mt-3 shrink-0 overflow-y-auto border-b pb-2 text-[1.35rem] leading-loose",
+            expanded ? "max-h-[22dvh]" : "max-h-[4.5em]",
+          )}
+        >
+          {ayah.words}
         </p>
       )}
 
@@ -268,7 +383,7 @@ export function AyahActions({
         role="tabpanel"
         lang="ar"
         dir="rtl"
-        className="font-arabic relative mt-2 max-h-[45dvh] min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain text-[1.05rem] leading-loose"
+        className="font-arabic relative mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain text-[1.05rem] leading-loose"
       >
         {parts ? (
           parts.map((p) => (
@@ -297,8 +412,9 @@ export function AyahActions({
         )}
       </div>
 
-      <p className="mt-3 mb-1.5 text-xs text-muted-foreground">{t("mushaf.moreTafsirs")}</p>
-      <div className="flex flex-wrap gap-2">
+      {/* The other tafsirs: one line pinned under the text (it scrolls sideways if it doesn't fit). */}
+      <div className="-mx-4 mt-2 flex shrink-0 items-center gap-2 overflow-x-auto border-t px-4 pt-2.5 whitespace-nowrap scrollbar-none">
+        <span className="text-xs text-muted-foreground">{t("mushaf.moreTafsirs")}</span>
         {tafsirs
           .filter((x) => !x.source)
           .map((x) => (
@@ -310,13 +426,13 @@ export function AyahActions({
               ) : (
                 l(x.name)
               )}
-              <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground rtl:-scale-x-100" />
+              <ArrowUpRight className="size-3 shrink-0 text-muted-foreground rtl:-scale-x-100" />
             </a>
           ))}
         {!isAr && (
           <a href={englishTafsirUrl(ayah.surah, ayah.hafs)} target="_blank" rel="noreferrer" className={chip}>
             {t("mushaf.tafsirEnglish")}
-            <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" />
+            <ArrowUpRight className="size-3 shrink-0 text-muted-foreground" />
           </a>
         )}
       </div>
